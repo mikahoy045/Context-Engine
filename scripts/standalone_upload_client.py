@@ -694,8 +694,11 @@ class RemoteUploadClient:
                 if not os.path.exists(bundle_path):
                     return {"success": False, "error": {"code": "BUNDLE_NOT_FOUND", "message": f"Bundle not found: {bundle_path}"}}
 
-                # Check bundle size (server-side enforcement)
+                # Check bundle size (configurable client-side cap)
+                max_bundle_mb = int(os.environ.get("REMOTE_UPLOAD_MAX_BUNDLE_MB", "100"))
                 bundle_size = os.path.getsize(bundle_path)
+                if bundle_size > max_bundle_mb * 1024 * 1024:
+                    return {"success": False, "error": {"code": "BUNDLE_TOO_LARGE", "message": f"Bundle too large: {bundle_size} bytes"}}
 
                 with open(bundle_path, 'rb') as bundle_file:
                     files = {

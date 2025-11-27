@@ -886,6 +886,14 @@ function buildChildEnv(options) {
       env.DEV_REMOTE_MODE = '1';
       log('Context Engine Uploader: devRemoteMode enabled (REMOTE_UPLOAD_MODE=development, DEV_REMOTE_MODE=1).');
     }
+    const maxBundleSizeMb = settings.get('maxBundleSizeMb');
+    if (typeof maxBundleSizeMb === 'number' && maxBundleSizeMb > 0) {
+      env.REMOTE_UPLOAD_MAX_BUNDLE_MB = String(maxBundleSizeMb);
+    }
+    const requestTimeoutSeconds = settings.get('requestTimeoutSeconds');
+    if (typeof requestTimeoutSeconds === 'number' && requestTimeoutSeconds > 0) {
+      env.REMOTE_UPLOAD_TIMEOUT = String(requestTimeoutSeconds);
+    }
   } catch (error) {
     log(`Failed to read devRemoteMode setting: ${error instanceof Error ? error.message : String(error)}`);
   }

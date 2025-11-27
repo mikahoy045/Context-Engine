@@ -2,7 +2,7 @@
   "name": "context-engine-uploader",
   "displayName": "Context Engine Uploader",
   "description": "Runs the Context-Engine remote upload client with a force sync on startup followed by watch mode. Requires Python with pip install requests urllib3 charset_normalizer.",
-  "version": "0.1.26",
+  "version": "0.1.28",
   "publisher": "context-engine",
   "engines": {
     "vscode": "^1.85.0"
@@ -205,6 +205,18 @@
           "type": "string",
           "default": "glm-4.6",
           "description": "GLM model name (GLM_MODEL) used by refrag_glm/ctx.py when REFRAG_RUNTIME=glm."
+        },
+        "contextEngineUploader.maxBundleSizeMb": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "description": "Maximum bundle size in MB for the remote upload client."
+        },
+        "contextEngineUploader.requestTimeoutSeconds": {
+          "type": "number",
+          "default": 1800,
+          "minimum": 1,
+          "description": "HTTP request timeout in seconds for the remote upload client (maps to REMOTE_UPLOAD_TIMEOUT)."
         }
       }
     }
