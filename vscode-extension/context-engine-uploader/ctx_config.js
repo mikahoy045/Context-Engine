@@ -1,5 +1,17 @@
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+
+function getGlobalConfigDir() {
+  const home = (process.platform === 'win32')
+    ? (process.env.USERPROFILE || os.homedir())
+    : os.homedir();
+  const globalDir = path.join(home, '.context-engine');
+  if (!fs.existsSync(globalDir)) {
+    fs.mkdirSync(globalDir, { recursive: true });
+  }
+  return globalDir;
+}
 
 function createCtxConfigManager(deps) {
   const vscode = deps.vscode;
@@ -89,6 +101,7 @@ function createCtxConfigManager(deps) {
 
   async function scaffoldCtxConfigFiles(workspaceDir, collectionName) {
     try {
+      const globalConfigDir = getGlobalConfigDir();
       const placeholders = new Set(['', 'default-collection', 'my-collection', 'codebase']);
 
       let uploaderSettings;
@@ -139,7 +152,7 @@ function createCtxConfigManager(deps) {
         }
       }
 
-      const ctxConfigPath = path.join(workspaceDir, 'ctx_config.json');
+      const ctxConfigPath = path.join(globalConfigDir, 'ctx_config.json');
       let ctxConfig = {};
       if (fs.existsSync(ctxConfigPath)) {
         try {
@@ -223,7 +236,7 @@ function createCtxConfigManager(deps) {
         log(`ctx_config.json at ${ctxConfigPath} already satisfied required values; not modified.`);
       }
 
-      const envPath = path.join(workspaceDir, '.env');
+      const envPath = path.join(globalConfigDir, '.env');
       let envContent = '';
 
       const baseDir = extensionRoot || __dirname;

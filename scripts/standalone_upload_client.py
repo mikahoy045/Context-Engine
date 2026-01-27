@@ -209,9 +209,10 @@ class SimpleHashCache:
     def __init__(self, workspace_path: str, repo_name: str):
         self.workspace_path = Path(workspace_path).resolve()
         self.repo_name = repo_name
-        self.cache_dir = self.workspace_path / ".context-engine"
+        workspace_hash = hashlib.md5(str(self.workspace_path).encode()).hexdigest()[:12]
+        self.cache_dir = Path(tempfile.gettempdir()) / ".context-engine-cache" / workspace_hash
         self.cache_file = self.cache_dir / "file_cache.json"
-        self.cache_dir.mkdir(exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         # In-memory cache to avoid re-reading and re-validating on every access
         self._cache_loaded = False
         self._cache: Dict[str, str] = {}
@@ -463,8 +464,12 @@ def _collect_git_history_for_workspace(workspace_path: str) -> Optional[Dict[str
         return None
 
     # Git history cache: avoid emitting identical manifests when HEAD/settings are unchanged
-    base = Path(os.environ.get("WORKSPACE_PATH") or workspace_path).resolve()
-    git_cache_path = base / ".context-engine" / "git_history_cache.json"
+    # Use system temp directory to avoid polluting workspace
+    cache_dir = Path(tempfile.gettempdir()) / ".context-engine-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # Use workspace path hash to make cache unique per workspace
+    workspace_hash = hashlib.md5(str(Path(workspace_path).resolve()).encode()).hexdigest()[:12]
+    git_cache_path = cache_dir / f"git_history_cache_{workspace_hash}.json"
     current_head = ""
     try:
         head_proc = subprocess.run(

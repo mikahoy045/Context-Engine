@@ -283,6 +283,16 @@ function registerExtensionCommands(deps) {
     // Bridge commands
     disposables.push(vscode.commands.registerCommand('contextEngineUploader.startMcpHttpBridge', () => {
         try {
+            const cfg = requireDep(getEffectiveConfig, 'getEffectiveConfig')();
+            const serverMode = (cfg.get('mcpServerMode') || 'bridge').trim();
+            const transportMode = (cfg.get('mcpTransportMode') || 'sse-remote').trim();
+            if (serverMode === 'direct') {
+                vscode.window.showWarningMessage('Context Engine Uploader: Server Mode is "direct" - the HTTP bridge is not needed. The bridge is only used when Server Mode is "bridge" and Transport is "http".');
+                return;
+            }
+            if (serverMode === 'bridge' && transportMode !== 'http') {
+                vscode.window.showInformationMessage(`Context Engine Uploader: Starting HTTP bridge, but Transport Mode is "${transportMode}". The bridge is typically used with Transport Mode "http".`);
+            }
             requireDep(startHttpBridgeProcess, 'startHttpBridgeProcess')().catch(error => handleCatch(error, 'HTTP MCP bridge start failed'));
         } catch (error) {
             handleCatch(error, 'HTTP MCP bridge start failed');

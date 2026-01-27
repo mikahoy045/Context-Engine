@@ -38,15 +38,51 @@ Once the script finishes, it will show a URL like `http://1.2.3.4:30810`.
 2. Install the **Context Engine** extension.
 3. Go to **Settings** (`Ctrl+,` or `Cmd+,`) and search for `Context Engine`.
 
-**Required Settings:**
+**Required Settings (General tab):**
 - **Endpoint**: `http://YOUR_SERVER_IP:30810` (replace with your actual server IP)
 - **Scaffold Config**: `false` (prevents creating `ctx_config.json`, `.env`, `.mcp.json` in your projects)
+
+**Required Settings (MCP Server tab):**
+- **Indexer URL**: `http://YOUR_SERVER_IP:30806/mcp` (for MCP indexer)
+- **Memory URL**: `http://YOUR_SERVER_IP:30804/mcp` (for MCP memory)
+
+**Critical - Disable Auto-Write:**
+- **MCP Integrations** → **Auto-write on Startup**: `false` (prevents automatic file creation on extension activation)
 
 **Optional Settings:**
 - **Run On Startup**: Enable to auto-index when VS Code opens
 - **Python Path**: Set to `python3` or your Python executable
 
-The extension will connect to your remote K3s cluster's upload service on port **30810** (not 8004, which is for local Docker stacks).
+**Complete K3s Port Reference:**
+
+| Service | Port | VSCode Setting | URL Format |
+|---------|------|----------------|------------|
+| Upload Service | `30810` | Endpoint | `http://IP:30810` |
+| MCP Memory HTTP | `30804` | Memory URL | `http://IP:30804/mcp` |
+| MCP Indexer HTTP | `30806` | Indexer URL | `http://IP:30806/mcp` |
+| LlamaCPP Decoder | `30808` | Decoder URL | `http://IP:30808` |
+| MCP Memory SSE | `30800` | (for SSE mode) | `http://IP:30800/sse` |
+| MCP Indexer SSE | `30802` | (for SSE mode) | `http://IP:30802/sse` |
+| Qdrant HTTP | `30333` | (internal) | `http://IP:30333` |
+| Qdrant gRPC | `30334` | (internal) | `IP:30334` |
+
+**Full VSCode Extension Settings for K3s:**
+
+| Tab | Setting | Value |
+|-----|---------|-------|
+| General | Endpoint | `http://YOUR_IP:30810` |
+| General | Scaffold Config | `false` |
+| MCP Server | Server Mode | `bridge` |
+| MCP Server | Transport | `http` |
+| MCP Server | Bridge Port | `30810` |
+| MCP Server | Indexer URL | `http://YOUR_IP:30806/mcp` |
+| MCP Server | Memory URL | `http://YOUR_IP:30804/mcp` |
+| Decoder & AI | Runtime | `llamacpp` (for local) or `glm` (for cloud) |
+| Decoder & AI | Decoder URL | `http://YOUR_IP:30808` |
+| Claude Hook | CTX Indexer URL | `http://YOUR_IP:30806/mcp` |
+| MCP Integrations | Auto-write on Startup | `false` |
+
+**Important:** After changing settings, click the **Save Settings** button in the settings panel.
 
 ## 3. Verify
 
@@ -60,19 +96,39 @@ The extension will connect to your remote K3s cluster's upload service on port *
 - Verify the server IP is reachable: `curl http://YOUR_SERVER_IP:30810/health`
 - Ensure no firewall is blocking port 30810
 
-## 4. Clean Up Extension Files (Optional)
+## 4. Prevent File Pollution
 
-If you already ran the extension before disabling **Scaffold Config**, clean up project files:
+The extension creates `ctx_config.json`, `.env`, and `.mcp.json` in your project directories. To prevent this:
+
+**Step 1: Disable ALL auto-write settings**
+
+In VSCode Settings (`Ctrl+,`), search for "Context Engine" and set:
+- **General** → **Scaffold Config**: `false`
+- **MCP Integrations** → **Auto-write on Startup**: `false`
+
+**Step 2: Avoid manual triggers**
+
+Do NOT click these actions in the Context Engine sidebar:
+- ❌ "Write MCP Config..." 
+- ❌ "Write CTX Config (ctx_config.json)"
+
+These will create files even if auto-write is disabled.
+
+**Step 3: Clean up existing files**
 
 ```bash
 # Remove from your project directories
-rm ctx_config.json .env .mcp.json
+cd /path/to/your/project
+rm -f ctx_config.json .env .mcp.json .git_history_cache.json
 
-# Add to .gitignore to prevent committing these files
-echo -e "\n# Context Engine extension files\nctx_config.json\n.env\n.mcp.json" >> .gitignore
+# Add to .gitignore globally
+echo -e "\n# Context Engine extension files\nctx_config.json\n.env\n.mcp.json\n.git_history_cache.json" >> .gitignore
 ```
 
-These files are unnecessary when using remote mode (K3s deployment).
+**Why this happens:**
+- The extension has TWO separate triggers: `scaffoldCtxConfig` (General tab) and `autoWriteMcpConfigOnStartup` (MCP Integrations tab)
+- Even with `scaffoldCtxConfig=false`, the extension calls `writeCtxConfig()` when `autoWriteMcpConfigOnStartup=true` (see `extension.js:511-515`)
+- Both settings must be `false` to prevent automatic file creation
 
 ## Configuration
 

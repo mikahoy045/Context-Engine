@@ -27,6 +27,17 @@ function getDefaultCursorMcpPath() {
   return path.join(home, '.cursor', 'mcp.json');
 }
 
+function getGlobalConfigDir() {
+  const home = (process.platform === 'win32')
+    ? (process.env.USERPROFILE || os.homedir())
+    : os.homedir();
+  const globalDir = path.join(home, '.context-engine');
+  if (!fs.existsSync(globalDir)) {
+    fs.mkdirSync(globalDir, { recursive: true });
+  }
+  return globalDir;
+}
+
 function createMcpConfigManager(deps) {
   const vscode = deps.vscode;
   const log = deps.log;
@@ -431,8 +442,8 @@ function createMcpConfigManager(deps) {
   }
 
   async function writeClaudeMcpServers(root, indexerUrl, memoryUrl, transportMode, serverMode = 'bridge') {
-    const bridgeWorkspace = resolveBridgeWorkspacePath();
-    const configPath = path.join(bridgeWorkspace || root, '.mcp.json');
+    const globalConfigDir = getGlobalConfigDir();
+    const configPath = path.join(globalConfigDir, '.mcp.json');
     const config = loadJsonConfigOrDefault(
       configPath,
       { mcpServers: {} },
@@ -454,7 +465,7 @@ function createMcpConfigManager(deps) {
         transportMode: mode,
         indexerUrl,
         memoryUrl,
-        bridgeWorkspace: bridgeWorkspace || root,
+        bridgeWorkspace: globalConfigDir,
         bridgeHttpUrl: () => resolveBridgeHttpUrl(),
         makeBridgeHttpServer: (url) => ({ type: 'http', url }),
         makeDirectHttpServer: (url) => ({ type: 'http', url }),
@@ -468,7 +479,7 @@ function createMcpConfigManager(deps) {
         transportMode: mode,
         indexerUrl,
         memoryUrl,
-        bridgeWorkspace: bridgeWorkspace || root,
+        bridgeWorkspace: globalConfigDir,
         bridgeHttpUrl: () => resolveBridgeHttpUrl(),
         makeBridgeHttpServer: (url) => ({ type: 'http', url }),
         makeDirectHttpServer: (url) => ({ type: 'http', url }),
@@ -481,7 +492,7 @@ function createMcpConfigManager(deps) {
         transportMode: mode,
         indexerUrl,
         memoryUrl,
-        bridgeWorkspace: bridgeWorkspace || root,
+        bridgeWorkspace: globalConfigDir,
         bridgeHttpUrl: () => resolveBridgeHttpUrl(),
         makeBridgeHttpServer: (url) => ({ type: 'http', url }),
         makeDirectHttpServer: (url) => ({ type: 'http', url }),

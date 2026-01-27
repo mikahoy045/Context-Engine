@@ -192,8 +192,12 @@ def _collect_git_history_for_workspace(workspace_path: str) -> Optional[Dict[str
         return None
 
     # Git history cache: avoid emitting identical manifests when HEAD/settings are unchanged
-    base = Path(os.environ.get("WORKSPACE_PATH") or workspace_path).resolve()
-    git_cache_path = base / ".context-engine" / "git_history_cache.json"
+    # Use system temp directory to avoid polluting workspace
+    cache_dir = Path(tempfile.gettempdir()) / ".context-engine-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # Use workspace path hash to make cache unique per workspace
+    workspace_hash = hashlib.md5(str(Path(workspace_path).resolve()).encode()).hexdigest()[:12]
+    git_cache_path = cache_dir / f"git_history_cache_{workspace_hash}.json"
     current_head = ""
     try:
         head_proc = subprocess.run(

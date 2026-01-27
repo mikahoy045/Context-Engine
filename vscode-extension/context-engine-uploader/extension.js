@@ -386,7 +386,10 @@ function activate(context) {
 
   // Register Settings Webview
   try {
-    settingsWebviewProvider = new SettingsWebviewProvider(context.extensionUri);
+    settingsWebviewProvider = new SettingsWebviewProvider(context.extensionUri, {
+      profiles,
+      getEffectiveConfig,
+    });
     const openSettingsCmd = vscode.commands.registerCommand('contextEngineUploader.openSettings', () => {
       settingsWebviewProvider.openSettings();
     });

@@ -15,8 +15,8 @@ const ACTIVE_PROFILE_KEY = 'contextEngineUploader.activeProfileId';
 function init({ vscode, context, log, onProfileChanged }) {
   _vscode = vscode;
   _context = context;
-  _log = typeof log === 'function' ? log : () => {};
-  _onProfileChanged = typeof onProfileChanged === 'function' ? onProfileChanged : () => {};
+  _log = typeof log === 'function' ? log : () => { };
+  _onProfileChanged = typeof onProfileChanged === 'function' ? onProfileChanged : () => { };
   try {
     if (_context && _context.globalState && typeof _context.globalState.setKeysForSync === 'function') {
       _context.globalState.setKeysForSync([PROFILES_DB_KEY, ACTIVE_PROFILE_KEY]);
@@ -128,7 +128,7 @@ function loadProfilesDb() {
   const mem = loadProfilesDbFromGlobalState();
   if (mem) {
     try {
-      saveProfilesDbToSettings(mem).catch(() => {});
+      saveProfilesDbToSettings(mem).catch(() => { });
     } catch (_) {
     }
     return mem;
@@ -150,7 +150,7 @@ function loadProfilesDb() {
       } catch (_) {
       }
       try {
-        saveProfilesDbToSettings(db).catch(() => {});
+        saveProfilesDbToSettings(db).catch(() => { });
       } catch (_) {
       }
       return db;
@@ -273,6 +273,33 @@ function getActiveProfileOverrides() {
     return {};
   }
   return overrides;
+}
+
+async function updateActiveProfileOverride(key, value) {
+  const activeId = getActiveProfileId();
+  if (!activeId) {
+    return false;
+  }
+  const db = loadProfilesDb();
+  const profiles = Array.isArray(db.profiles) ? db.profiles : [];
+  const profile = profiles.find(p => p && typeof p === 'object' && p.id === activeId);
+  if (!profile) {
+    return false;
+  }
+  if (!profile.overrides || typeof profile.overrides !== 'object') {
+    profile.overrides = {};
+  }
+  profile.overrides[key] = value;
+  profile.updatedAt = new Date().toISOString();
+  db.profiles = profiles;
+  const saved = await saveProfilesDb(db);
+  if (saved) {
+    try {
+      _onProfileChanged();
+    } catch (_) {
+    }
+  }
+  return saved;
 }
 
 function getUploaderConfig() {
@@ -906,5 +933,6 @@ module.exports = {
   getActiveProfileSummary,
   setActiveProfileId,
   getActiveProfileOverrides,
+  updateActiveProfileOverride,
   registerCommands,
 };

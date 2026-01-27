@@ -1,6 +1,7 @@
 const vscode = require('vscode');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const { spawn } = require('child_process');
 const { getDefaultWindsurfMcpPath, getDefaultAugmentMcpPath, getDefaultAntigravityMcpPath, getDefaultCursorMcpPath } = require('./mcp_config');
 const { checkAuthStatus } = require('./auth_utils');
@@ -74,6 +75,13 @@ function pathExists(p, expectDir = false) {
   }
 }
 
+function getGlobalConfigDir() {
+  const home = (process.platform === 'win32')
+    ? (process.env.USERPROFILE || os.homedir())
+    : os.homedir();
+  return path.join(home, '.context-engine');
+}
+
 function findConfigFile(bases, filename) {
   for (const base of bases) {
     if (!base) {
@@ -83,6 +91,10 @@ function findConfigFile(bases, filename) {
     if (pathExists(candidate)) {
       return candidate;
     }
+  }
+  const globalCandidate = path.join(getGlobalConfigDir(), filename);
+  if (pathExists(globalCandidate)) {
+    return globalCandidate;
   }
   return undefined;
 }

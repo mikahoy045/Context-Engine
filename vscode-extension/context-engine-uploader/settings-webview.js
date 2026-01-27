@@ -106,10 +106,27 @@ const SETTINGS_SCHEMA = {
 class SettingsWebviewProvider {
   static viewType = 'contextEngineSettingsPanel';
 
-  constructor(extensionUri) {
+  constructor(extensionUri, deps = {}) {
     this._extensionUri = extensionUri;
     this._panel = undefined;
     this._activeSection = 'general';
+    this._pendingChanges = {};
+    this._profiles = deps.profiles || null;
+    this._getEffectiveConfig = deps.getEffectiveConfig || null;
+  }
+
+  _getActiveProfileInfo() {
+    if (!this._profiles || typeof this._profiles.getActiveProfileSummary !== 'function') {
+      return { id: undefined, name: undefined };
+    }
+    return this._profiles.getActiveProfileSummary();
+  }
+
+  async _updateProfileOverride(key, value) {
+    if (!this._profiles || typeof this._profiles.updateActiveProfileOverride !== 'function') {
+      return false;
+    }
+    return this._profiles.updateActiveProfileOverride(key, value);
   }
 
   openSettings() {
@@ -146,9 +163,32 @@ class SettingsWebviewProvider {
 
   async _handleMessage(message) {
     const cfg = vscode.workspace.getConfiguration('contextEngineUploader');
+    const activeProfile = this._getActiveProfileInfo();
+    const hasActiveProfile = !!activeProfile.id;
+
     switch (message.command) {
       case 'updateSetting':
-        await cfg.update(message.key, message.value, vscode.ConfigurationTarget.Global);
+        if (!this._pendingChanges) this._pendingChanges = {};
+        this._pendingChanges[message.key] = message.value;
+        this._updateSaveButtonState();
+        break;
+      case 'saveAllSettings':
+        if (this._pendingChanges) {
+          if (hasActiveProfile) {
+            for (const [key, value] of Object.entries(this._pendingChanges)) {
+              await this._updateProfileOverride(key, value);
+            }
+            this._pendingChanges = {};
+            vscode.window.showInformationMessage(`Context Engine: Settings saved to profile "${activeProfile.name || activeProfile.id}".`);
+          } else {
+            for (const [key, value] of Object.entries(this._pendingChanges)) {
+              await cfg.update(key, value, vscode.ConfigurationTarget.Global);
+            }
+            this._pendingChanges = {};
+            vscode.window.showInformationMessage('Context Engine: Settings saved to global configuration.');
+          }
+          this.refresh();
+        }
         break;
       case 'setSection':
         this._activeSection = message.section;
@@ -160,14 +200,24 @@ class SettingsWebviewProvider {
     }
   }
 
+  _updateSaveButtonState() {
+    if (this._panel) {
+      const hasChanges = this._pendingChanges && Object.keys(this._pendingChanges).length > 0;
+      this._panel.webview.postMessage({ command: 'updateSaveButton', hasChanges });
+    }
+  }
+
   refresh() {
     if (this._panel) {
       this._panel.webview.html = this._getHtmlContent(this._panel.webview);
+      this._updateSaveButtonState();
     }
   }
 
   _getAllSettings() {
-    const cfg = vscode.workspace.getConfiguration('contextEngineUploader');
+    const cfg = this._getEffectiveConfig
+      ? this._getEffectiveConfig()
+      : vscode.workspace.getConfiguration('contextEngineUploader');
     const values = {};
     for (const [categoryKey, category] of Object.entries(SETTINGS_SCHEMA)) {
       for (const setting of category.settings) {
@@ -181,13 +231,17 @@ class SettingsWebviewProvider {
     const nonce = getNonce();
     const values = this._getAllSettings();
     const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'assets', 'logo.jpeg'));
+    const activeProfile = this._getActiveProfileInfo();
+    const profileBadge = activeProfile.id
+      ? `<div class="profile-badge active"><span class="codicon codicon-account"></span> Profile: ${activeProfile.name || activeProfile.id}</div>`
+      : `<div class="profile-badge global"><span class="codicon codicon-globe"></span> Global Settings</div>`;
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src https://microsoft.github.io; img-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src https://microsoft.github.io; img-src ${webview.cspSource}; script-src 'nonce-${nonce}' 'unsafe-inline';">
   <title>Context Engine Settings</title>
   <link href="https://microsoft.github.io/vscode-codicons/dist/codicon.css" rel="stylesheet">
   <style>${this._getStyles()}</style>
@@ -198,11 +252,16 @@ class SettingsWebviewProvider {
       <div class="sidebar-header">
         <img src="${logoUri}" alt="Context Engine" class="logo-img">
         <h1>Settings</h1>
+        ${profileBadge}
       </div>
       <nav class="nav-list">
         ${this._getNavItems()}
       </nav>
       <div class="sidebar-footer">
+        <button class="save-btn ${this._pendingChanges && Object.keys(this._pendingChanges).length > 0 ? 'has-changes' : ''}" id="saveBtn" onclick="saveAllSettings()" ${this._pendingChanges && Object.keys(this._pendingChanges).length > 0 ? '' : 'disabled'}>
+          <span class="codicon codicon-save"></span>
+          ${activeProfile.id ? 'Save to Profile' : 'Save Settings'}
+        </button>
         <button class="link-btn" onclick="openVsCodeSettings()">
           <span class="codicon codicon-json"></span>
           Edit JSON
@@ -264,10 +323,10 @@ class SettingsWebviewProvider {
         input = `<input type="number" id="${id}" value="${value ?? ''}" ${setting.min !== undefined ? `min="${setting.min}"` : ''} onchange="updateSetting('${setting.key}', parseInt(this.value, 10))" placeholder="${setting.placeholder || ''}">`;
         break;
       case 'password':
-        input = `<input type="password" id="${id}" value="${value || ''}" onchange="updateSetting('${setting.key}', this.value)" placeholder="••••••••">`;
+        input = `<input type="password" id="${id}" value="${value || ''}" oninput="updateSetting('${setting.key}', this.value)" placeholder="••••••••">`;
         break;
       default:
-        input = `<input type="text" id="${id}" value="${value || ''}" onchange="updateSetting('${setting.key}', this.value)" placeholder="${setting.placeholder || ''}">`;
+        input = `<input type="text" id="${id}" value="${value || ''}" oninput="updateSetting('${setting.key}', this.value)" placeholder="${setting.placeholder || ''}">`;
     }
 
     return `
@@ -326,6 +385,7 @@ class SettingsWebviewProvider {
     .sidebar-header {
       padding: 16px;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 10px;
       border-bottom: 1px solid var(--border-subtle);
@@ -339,6 +399,30 @@ class SettingsWebviewProvider {
     .sidebar-header h1 {
       font-size: 14px;
       font-weight: 600;
+    }
+    .profile-badge {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+      font-size: 11px;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+    .profile-badge.active {
+      background: linear-gradient(135deg, rgba(79, 192, 141, 0.15), rgba(79, 192, 141, 0.05));
+      border: 1px solid rgba(79, 192, 141, 0.3);
+      color: rgb(79, 192, 141);
+    }
+    .profile-badge.global {
+      background: linear-gradient(135deg, rgba(100, 149, 237, 0.15), rgba(100, 149, 237, 0.05));
+      border: 1px solid rgba(100, 149, 237, 0.3);
+      color: rgb(100, 149, 237);
+    }
+    .profile-badge .codicon {
+      font-size: 12px;
     }
     .nav-list {
       flex: 1;
@@ -374,25 +458,45 @@ class SettingsWebviewProvider {
       padding: 12px;
       border-top: 1px solid var(--border-subtle);
     }
+    .save-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      opacity: 0.5;
+    }
+    .save-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+    .save-btn.has-changes { opacity: 1; animation: pulse 1.5s infinite; }
+    .save-btn:not(:disabled):hover { background: var(--accent-hover); }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent), 0.4); }
+      50% { box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.2); }
+    }
     .link-btn {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 12px;
+      padding: 10px 16px;
       background: transparent;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
       color: var(--text-secondary);
       cursor: pointer;
-      font-size: 12px;
-      width: 100%;
+      font-size: 13px;
       transition: all 0.15s ease;
     }
-    .link-btn:hover {
-      background: var(--bg-hover);
-      border-color: var(--border);
-      color: var(--text-primary);
-    }
+    .link-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
     .content {
       overflow-y: auto;
       padding: 32px 40px;
@@ -467,12 +571,34 @@ class SettingsWebviewProvider {
   _getScript() {
     return `
     const vscode = acquireVsCodeApi();
+    let pendingCount = 0;
     function updateSetting(key, value) {
       vscode.postMessage({ command: 'updateSetting', key, value });
+      pendingCount++;
+      updateSaveButtonUI(true);
+    }
+    function saveAllSettings() {
+      vscode.postMessage({ command: 'saveAllSettings' });
+      pendingCount = 0;
+      updateSaveButtonUI(false);
     }
     function openVsCodeSettings() {
       vscode.postMessage({ command: 'openVsCodeSettings' });
     }
+    function updateSaveButtonUI(hasChanges) {
+      const btn = document.getElementById('saveBtn');
+      if (btn) {
+        btn.disabled = !hasChanges;
+        btn.classList.toggle('has-changes', hasChanges);
+      }
+    }
+    window.addEventListener('message', event => {
+      const msg = event.data;
+      if (msg.command === 'updateSaveButton') {
+        pendingCount = msg.hasChanges ? 1 : 0;
+        updateSaveButtonUI(msg.hasChanges);
+      }
+    });
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => {
         vscode.postMessage({ command: 'setSection', section: btn.dataset.section });
