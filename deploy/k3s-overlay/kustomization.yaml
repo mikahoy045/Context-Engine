@@ -1,0 +1,264 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../kubernetes
+
+patches:
+  # 0. Add K3s-specific ConfigMap values
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: add
+        path: /data/REMOTE_UPLOAD_ENABLED
+        value: "1"
+      - op: add
+        path: /data/LLAMACPP_MODEL_URL
+        value: "https://huggingface.co/ibm-granite/granite-4.0-micro-GGUF/resolve/main/granite-4.0-micro-Q4_K_M.gguf"
+      - op: add
+        path: /data/LLAMACPP_MODEL_NAME
+        value: "model.gguf"
+  
+  # 1. Update PVCs to use 'local-path' and RWO
+  - target:
+      kind: PersistentVolumeClaim
+      name: code-repos-pvc
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: local-path
+      - op: replace
+        path: /spec/accessModes
+        value: ["ReadWriteOnce"]
+  
+  - target:
+      kind: PersistentVolumeClaim
+      name: code-metadata-pvc
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: local-path
+      - op: replace
+        path: /spec/accessModes
+        value: ["ReadWriteOnce"]
+
+  - target:
+      kind: PersistentVolumeClaim
+      name: code-models-pvc
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: local-path
+      - op: replace
+        path: /spec/accessModes
+        value: ["ReadWriteOnce"]
+
+  # 2. Fix Qdrant: Storage + CPU Limits + Replicas
+  - target:
+      kind: StatefulSet
+      name: qdrant
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: qdrant
+      spec:
+        replicas: 1
+        template:
+          spec:
+            containers:
+            - name: qdrant
+              resources:
+                limits:
+                  cpu: "2"
+                requests:
+                  cpu: "200m"
+        volumeClaimTemplates:
+        - metadata:
+            name: qdrant-storage
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            storageClassName: local-path
+            resources:
+              requests:
+                storage: 20Gi
+
+  # 3. Fix Redis: Storage
+  - target:
+      kind: StatefulSet
+      name: redis
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: redis
+      spec:
+        volumeClaimTemplates:
+        - metadata:
+            name: redis-data
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            storageClassName: local-path
+            resources:
+              requests:
+                storage: 5Gi
+
+  # 4. Fix ImagePullPolicy for Local Images (Force local)
+  - target:
+      kind: Deployment
+      name: upload-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+
+  - target:
+      kind: Deployment
+      name: mcp-memory
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "200m"
+  
+  - target:
+      kind: Deployment
+      name: watcher
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+
+  - target:
+      kind: Deployment
+      name: learning-reranker-worker
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer-http
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+
+  - target:
+      kind: Deployment
+      name: mcp-memory-http
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+
+  # Fix Jobs too
+  - target:
+      kind: Job
+      name: init-payload
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+
+  - target:
+      kind: Job
+      name: indexer-job
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+
+  # 5. Fix Llamacpp Image (Use local build) & Command & Resources
+  - target:
+      kind: Deployment
+      name: llamacpp
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: context-engine-llamacpp
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/command/0
+        value: /app/llama-server
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "500m"
+
+  # 6. Limit Worker Replicas to 2 (User Request)
+  - target:
+      kind: Deployment
+      name: learning-reranker-worker
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer-http
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  # 7. Fix MCP Memory Volume Configuration (Remove duplicate PVC reference)
+  - target:
+      kind: Deployment
+      name: mcp-memory
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/initContainers
+      - op: remove
+        path: /spec/template/spec/volumes/2
+      - op: replace
+        path: /spec/template/spec/containers/0/volumeMounts
+        value:
+          - name: work-volume
+            mountPath: /work
+            readOnly: true
+          - name: codebase-volume
+            mountPath: /work/.codebase
+          - name: codebase-volume
+            mountPath: /tmp/rerank_weights
+            subPath: rerank_weights
+          - name: codebase-volume
+            mountPath: /tmp/rerank_events
+            subPath: rerank_events
