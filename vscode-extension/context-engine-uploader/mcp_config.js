@@ -590,7 +590,7 @@ function createMcpConfigManager(deps) {
         bridgeWorkspace: resolveBridgeWorkspacePath() || workspaceHint || '',
         bridgeHttpUrl: () => resolveBridgeHttpUrl(),
         makeBridgeHttpServer: (url) => ({ serverUrl: url }),
-        makeDirectHttpServer: (url) => ({ type: 'http', url }),
+        makeDirectHttpServer: (url) => ({ serverUrl: url }),
         deleteContextEngineInDirect: true,
       });
     } else if (serverMode !== 'bridge') {
