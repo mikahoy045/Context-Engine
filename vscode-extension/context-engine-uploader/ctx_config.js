@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 
 function getGlobalConfigDir() {
   const home = (process.platform === 'win32')
@@ -11,6 +12,30 @@ function getGlobalConfigDir() {
     fs.mkdirSync(globalDir, { recursive: true });
   }
   return globalDir;
+}
+
+function computeWorkspaceHash(workspacePath) {
+  const normalized = path.resolve(workspacePath).toLowerCase();
+  return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+}
+
+function getWorkspaceConfigDir(workspacePath) {
+  if (!workspacePath) {
+    return getGlobalConfigDir();
+  }
+  const globalDir = getGlobalConfigDir();
+  const hash = computeWorkspaceHash(workspacePath);
+  const workspaceDir = path.join(globalDir, 'workspaces', hash);
+  if (!fs.existsSync(workspaceDir)) {
+    fs.mkdirSync(workspaceDir, { recursive: true });
+  }
+  const metaPath = path.join(workspaceDir, '.workspace_meta.json');
+  try {
+    const meta = { workspace_path: workspacePath, updated_at: new Date().toISOString() };
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+  } catch (err) {
+  }
+  return workspaceDir;
 }
 
 function createCtxConfigManager(deps) {
@@ -102,6 +127,7 @@ function createCtxConfigManager(deps) {
   async function scaffoldCtxConfigFiles(workspaceDir, collectionName) {
     try {
       const globalConfigDir = getGlobalConfigDir();
+      const workspaceConfigDir = getWorkspaceConfigDir(workspaceDir);
       const placeholders = new Set(['', 'default-collection', 'my-collection', 'codebase']);
 
       let uploaderSettings;
@@ -152,7 +178,7 @@ function createCtxConfigManager(deps) {
         }
       }
 
-      const ctxConfigPath = path.join(globalConfigDir, 'ctx_config.json');
+      const ctxConfigPath = path.join(workspaceConfigDir, 'ctx_config.json');
       let ctxConfig = {};
       if (fs.existsSync(ctxConfigPath)) {
         try {
@@ -260,38 +286,7 @@ function createCtxConfigManager(deps) {
       let envLines = envContent ? envContent.split(/\r?\n/) : [];
       let envChanged = false;
       let collectionUpdated = false;
-
-      let idx = -1;
-      for (let i = 0; i < envLines.length; i++) {
-        if (envLines[i].trim().startsWith('COLLECTION_NAME=')) {
-          idx = i;
-          break;
-        }
-      }
-      let currentEnvVal = '';
-      if (idx >= 0) {
-        const m = envLines[idx].match(/^COLLECTION_NAME=(.*)$/);
-        if (m) {
-          currentEnvVal = (m[1] || '').trim();
-        }
-      }
-      if (idx === -1 || placeholders.has(currentEnvVal)) {
-        const newLine = `COLLECTION_NAME=${collectionName}`;
-        if (idx === -1) {
-          if (envLines.length && envLines[envLines.length - 1].trim() !== '') {
-            envLines.push('');
-          }
-          envLines.push(newLine);
-        } else {
-          envLines[idx] = newLine;
-        }
-        envChanged = true;
-        collectionUpdated = true;
-        vscode.window.showInformationMessage(`Context Engine Uploader: .env updated with COLLECTION_NAME=${collectionName}.`);
-        log(`Updated .env at ${envPath}`);
-      } else {
-        log(`.env at ${envPath} already has non-placeholder COLLECTION_NAME; not modified.`);
-      }
+      void collectionUpdated;
 
       function getEnvEntry(key) {
         for (let i = 0; i < envLines.length; i++) {
@@ -413,11 +408,7 @@ function createCtxConfigManager(deps) {
       if (envChanged) {
         fs.writeFileSync(envPath, envLines.join('\n') + '\n', 'utf8');
         log(`Ensured decoder/GLM/MCP settings in .env at ${envPath}`);
-      } else {
-        log(`.env at ${envPath} already satisfied CTX defaults; not modified.`);
       }
-
-      void collectionUpdated;
     } catch (error) {
       log(`Error scaffolding ctx_config/.env: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -433,4 +424,7 @@ function createCtxConfigManager(deps) {
 
 module.exports = {
   createCtxConfigManager,
+  getGlobalConfigDir,
+  computeWorkspaceHash,
+  getWorkspaceConfigDir,
 };

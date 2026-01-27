@@ -1,6 +1,8 @@
 import process from "node:process";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import os from "node:os";
 import { execSync } from "node:child_process";
 import { createServer } from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -572,7 +574,7 @@ async function createBridgeServer(options) {
 
     if (forceRecreate) {
       debugLog("[ctxce] Reinitializing remote MCP clients after session error.");
-      
+
       if (indexerClient) {
         try {
           await indexerClient.close();
@@ -1036,8 +1038,36 @@ export async function runHttpMcpServer(options) {
   process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
+function computeWorkspaceHash(workspacePath) {
+  const normalized = path.resolve(workspacePath).toLowerCase();
+  return crypto.createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+
+function getGlobalConfigDir() {
+  const home = process.platform === "win32"
+    ? (process.env.USERPROFILE || os.homedir())
+    : os.homedir();
+  return path.join(home, ".context-engine");
+}
+
 function loadConfig(startDir) {
   try {
+    if (startDir) {
+      const hash = computeWorkspaceHash(startDir);
+      const workspaceCfgPath = path.join(getGlobalConfigDir(), "workspaces", hash, "ctx_config.json");
+      if (fs.existsSync(workspaceCfgPath)) {
+        try {
+          const raw = fs.readFileSync(workspaceCfgPath, "utf8");
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            debugLog(`[ctxce] Loaded workspace-specific config from ${workspaceCfgPath}`);
+            return parsed;
+          }
+        } catch (err) {
+          console.error("[ctxce] Failed to parse workspace-specific ctx_config.json:", err);
+        }
+      }
+    }
     let dir = startDir;
     for (let i = 0; i < 5; i += 1) {
       const cfgPath = path.join(dir, "ctx_config.json");
@@ -1049,7 +1079,6 @@ function loadConfig(startDir) {
             return parsed;
           }
         } catch (err) {
-          // eslint-disable-next-line no-console
           console.error("[ctxce] Failed to parse ctx_config.json:", err);
           return null;
         }
@@ -1060,8 +1089,20 @@ function loadConfig(startDir) {
       }
       dir = parent;
     }
+    const globalCfgPath = path.join(getGlobalConfigDir(), "ctx_config.json");
+    if (fs.existsSync(globalCfgPath)) {
+      try {
+        const raw = fs.readFileSync(globalCfgPath, "utf8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          debugLog(`[ctxce] Loaded global fallback config from ${globalCfgPath}`);
+          return parsed;
+        }
+      } catch (err) {
+        console.error("[ctxce] Failed to parse global ctx_config.json:", err);
+      }
+    }
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error("[ctxce] Error while loading ctx_config.json:", err);
   }
   return null;
