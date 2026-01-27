@@ -104,8 +104,8 @@ function createMcpConfigManager(deps) {
       memoryUrl,
       bridgeWorkspace: resolveBridgeWorkspacePath() || workspaceHint || '',
       bridgeHttpUrl: () => resolveBridgeHttpUrl(),
-      makeBridgeHttpServer: (url) => ({ type: 'http', url }),
-      makeDirectHttpServer: (url) => ({ type: 'http', url }),
+      makeBridgeHttpServer: (url) => ({ serverUrl: url }),
+      makeDirectHttpServer: (url) => ({ serverUrl: url }),
       makeRemoteSseServer: (url) => makeMcpRemoteServer(url, { allowHttpForNonLocal: true, useCmdOnWindows: true }),
       deleteContextEngineInDirect: true,
     });
