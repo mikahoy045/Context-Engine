@@ -266,6 +266,24 @@ patches:
             mountPath: /tmp/rerank_events
             subPath: rerank_events
 
+  # 9. Enable GRAPH_IMPORT_ON_INDEX
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: add
+        path: /data/GRAPH_IMPORT_ON_INDEX
+        value: "1"
+
+  # 9.5. Enable multi-repo mode (set COLLECTION_NAME to empty)
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: replace
+        path: /data/COLLECTION_NAME
+        value: ""
+
   # 10. Enable NEO4J_GRAPH
   - target:
       kind: ConfigMap
@@ -288,3 +306,21 @@ patches:
             configMapKeyRef:
               name: context-engine-config
               key: NEO4J_GRAPH
+
+  # 12. Add Neo4j credentials
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: add
+        path: /data/NEO4J_URI
+        value: "neo4j://neo4j:7687"
+      - op: add
+        path: /data/NEO4J_USER
+        value: "neo4j"
+      - op: add
+        path: /data/NEO4J_PASSWORD
+        value: "contextengine"
+      - op: add
+        path: /data/NEO4J_DATABASE
+        value: "neo4j"
