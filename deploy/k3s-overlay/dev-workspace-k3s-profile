@@ -17,7 +17,28 @@
         "decoderRuntime": "llamacpp",
         "decoderUrl": "http://localhost:30808",
         "useGpuDecoder": true,
-        "ctxIndexerUrl": "http://localhost:30806/mcp"
+        "ctxIndexerUrl": "http://localhost:30806/mcp",
+        "authToken": ""
+      }
+    },
+    {
+      "id": "p_vps_remote_auth",
+      "name": "vps-remote-authenticated",
+      "createdAt": "2026-01-28T00:00:00.000Z",
+      "updatedAt": "2026-01-28T00:00:00.000Z",
+      "overrides": {
+        "endpoint": "http://YOUR_VPS_IP:30810",
+        "mcpClaudeEnabled": false,
+        "mcpWindsurfEnabled": true,
+        "mcpServerMode": "direct",
+        "mcpIndexerUrl": "http://YOUR_VPS_IP:30806/mcp",
+        "mcpMemoryUrl": "http://YOUR_VPS_IP:30804/mcp",
+        "autoStartMcpBridge": false,
+        "decoderRuntime": "llamacpp",
+        "decoderUrl": "http://YOUR_VPS_IP:30808",
+        "useGpuDecoder": true,
+        "ctxIndexerUrl": "http://YOUR_VPS_IP:30806/mcp",
+        "authToken": "YOUR_AUTH_TOKEN_HERE"
       }
     }
   ]

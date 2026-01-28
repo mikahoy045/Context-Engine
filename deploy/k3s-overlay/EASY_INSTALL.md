@@ -130,6 +130,81 @@ echo -e "\n# Context Engine extension files\nctx_config.json\n.env\n.mcp.json\n.
 - Even with `scaffoldCtxConfig=false`, the extension calls `writeCtxConfig()` when `autoWriteMcpConfigOnStartup=true` (see `extension.js:511-515`)
 - Both settings must be `false` to prevent automatic file creation
 
+## Authentication Setup (Optional - Required for Public VPS)
+
+Authentication is **optional** for local/private deployments but **required** when exposing to the internet.
+
+### Local Deployment (No Auth)
+
+For local or private network deployments, use the standard install:
+
+```bash
+sudo ./easy_install.sh
+```
+
+### VPS/Public Deployment (With Auth)
+
+#### Step 1: Generate Auth Tokens
+
+```bash
+ADMIN_TOKEN=$(openssl rand -hex 32)
+SHARED_TOKEN=$(openssl rand -hex 32)
+echo "Admin Token: $ADMIN_TOKEN"
+echo "Shared Token: $SHARED_TOKEN"
+```
+
+Save these tokens securely.
+
+#### Step 2: Configure the Secret
+
+```bash
+cd Context-Engine/deploy/k3s-overlay/auth-overlay
+nano auth-secret.yaml
+```
+
+Replace the empty values:
+
+```yaml
+stringData:
+  CTXCE_AUTH_ADMIN_TOKEN: "your-admin-token-here"
+  CTXCE_AUTH_SHARED_TOKEN: "your-shared-token-here"
+```
+
+#### Step 3: Deploy with Auth Overlay
+
+```bash
+cd Context-Engine/deploy/k3s-overlay
+sudo k3s kubectl apply -k auth-overlay/
+```
+
+Or modify `easy_install.sh` to use `auth-overlay` instead of the base overlay.
+
+#### Step 4: Configure Client
+
+In VS Code extension settings (**Context Engine › MCP Server**):
+
+| Setting | Value |
+|---------|-------|
+| **MCP Auth Token** | `your-shared-token-here` |
+| **Server Mode** | `direct` |
+| **Transport Mode** | `http` |
+
+Then run the **"Write MCP Config (Windsurf)"** command.
+
+### Token Types
+
+| Token | Use Case | Access Level |
+|-------|----------|--------------|
+| Admin Token | Server administration | Full access |
+| Shared Token | Regular client access | Standard operations |
+
+### Verify Auth
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" http://YOUR_IP:30806/mcp
+curl http://YOUR_IP:30806/mcp
+```
+
 ## Configuration
 
 The k3s-overlay deployment uses Kustomize patches to extend the base configuration with k3s-specific values:

@@ -1,0 +1,112 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../
+  - auth-secret.yaml
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: replace
+        path: /data/CTXCE_AUTH_ENABLED
+        value: "1"
+      - op: remove
+        path: /data/CTXCE_AUTH_ADMIN_TOKEN
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer-http
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mcp-indexer-http
+      spec:
+        template:
+          spec:
+            containers:
+            - name: mcp-indexer-http
+              envFrom:
+              - configMapRef:
+                  name: context-engine-config
+              - secretRef:
+                  name: context-engine-auth
+
+  - target:
+      kind: Deployment
+      name: mcp-memory-http
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mcp-memory-http
+      spec:
+        template:
+          spec:
+            containers:
+            - name: mcp-memory-http
+              envFrom:
+              - configMapRef:
+                  name: context-engine-config
+              - secretRef:
+                  name: context-engine-auth
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mcp-indexer
+      spec:
+        template:
+          spec:
+            containers:
+            - name: mcp-indexer
+              envFrom:
+              - configMapRef:
+                  name: context-engine-config
+              - secretRef:
+                  name: context-engine-auth
+
+  - target:
+      kind: Deployment
+      name: mcp-memory
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mcp-memory
+      spec:
+        template:
+          spec:
+            containers:
+            - name: mcp-memory
+              envFrom:
+              - configMapRef:
+                  name: context-engine-config
+              - secretRef:
+                  name: context-engine-auth
+
+  - target:
+      kind: Deployment
+      name: upload-service
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: upload-service
+      spec:
+        template:
+          spec:
+            containers:
+            - name: upload-service
+              envFrom:
+              - configMapRef:
+                  name: context-engine-config
+              - secretRef:
+                  name: context-engine-auth

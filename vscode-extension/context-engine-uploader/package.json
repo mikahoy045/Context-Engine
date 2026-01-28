@@ -376,6 +376,12 @@
             "default": "http://localhost:8002/mcp",
             "order": 6,
             "description": "MCP server URL for memory/search."
+          },
+          "contextEngineUploader.mcpAuthToken": {
+            "type": "string",
+            "default": "",
+            "order": 7,
+            "markdownDescription": "Authentication token for remote MCP servers. Used as `Authorization: Bearer <token>` header. **Keep this secret!**"
           }
         }
       },

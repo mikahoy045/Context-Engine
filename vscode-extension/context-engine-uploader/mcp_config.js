@@ -307,6 +307,7 @@ function createMcpConfigManager(deps) {
     const mode = options && typeof options.transportMode === 'string' ? options.transportMode : 'sse-remote';
     const indexerUrl = options ? options.indexerUrl : undefined;
     const memoryUrl = options ? options.memoryUrl : undefined;
+    const authToken = options ? options.authToken : undefined;
 
     if (serverMode === 'bridge') {
       const bridgeWorkspace = options && options.bridgeWorkspace ? options.bridgeWorkspace : '';
@@ -331,19 +332,23 @@ function createMcpConfigManager(deps) {
       if (options && options.deleteContextEngineInDirect) {
         delete servers['context-engine'];
       }
-      // Note: if indexerUrl or memoryUrl are blank/falsey, we intentionally do
-      // not delete existing entries here. This preserves prior working config
-      // during partial/invalid configuration edits. We can revisit later if we
-      // want blank URLs to mean "delete this server entry".
       if (indexerUrl) {
-        servers['qdrant-indexer'] = options && typeof options.makeDirectHttpServer === 'function'
+        const serverConfig = options && typeof options.makeDirectHttpServer === 'function'
           ? options.makeDirectHttpServer(indexerUrl)
           : { type: 'http', url: indexerUrl };
+        if (authToken) {
+          serverConfig.headers = { Authorization: `Bearer ${authToken}` };
+        }
+        servers['qdrant-indexer'] = serverConfig;
       }
       if (memoryUrl) {
-        servers.memory = options && typeof options.makeDirectHttpServer === 'function'
+        const serverConfig = options && typeof options.makeDirectHttpServer === 'function'
           ? options.makeDirectHttpServer(memoryUrl)
           : { type: 'http', url: memoryUrl };
+        if (authToken) {
+          serverConfig.headers = { Authorization: `Bearer ${authToken}` };
+        }
+        servers.memory = serverConfig;
       }
       return;
     }
@@ -558,7 +563,7 @@ function createMcpConfigManager(deps) {
     );
   }
 
-  async function writeWindsurfMcpServers(configPath, indexerUrl, memoryUrl, transportMode, serverMode = 'bridge', workspaceHint) {
+  async function writeWindsurfMcpServers(configPath, indexerUrl, memoryUrl, transportMode, serverMode = 'bridge', workspaceHint, authToken) {
     try {
       fs.mkdirSync(path.dirname(configPath), { recursive: true });
     } catch (error) {
@@ -587,6 +592,7 @@ function createMcpConfigManager(deps) {
         transportMode: mode,
         indexerUrl,
         memoryUrl,
+        authToken,
         bridgeWorkspace: resolveBridgeWorkspacePath() || workspaceHint || '',
         bridgeHttpUrl: () => resolveBridgeHttpUrl(),
         makeBridgeHttpServer: (url) => ({ serverUrl: url }),
@@ -622,6 +628,7 @@ function createMcpConfigManager(deps) {
         transportMode: mode,
         indexerUrl,
         memoryUrl,
+        authToken,
         bridgeWorkspace: resolveBridgeWorkspacePath() || workspaceHint || '',
         bridgeHttpUrl: () => resolveBridgeHttpUrl(),
         makeBridgeHttpServer: (url) => ({ serverUrl: url }),
@@ -635,6 +642,7 @@ function createMcpConfigManager(deps) {
         transportMode: mode,
         indexerUrl,
         memoryUrl,
+        authToken,
         bridgeWorkspace: resolveBridgeWorkspacePath() || workspaceHint || '',
         bridgeHttpUrl: () => resolveBridgeHttpUrl(),
         makeBridgeHttpServer: (url) => ({ serverUrl: url }),
@@ -830,6 +838,7 @@ function createMcpConfigManager(deps) {
 
     let indexerUrl = (settings.get('mcpIndexerUrl') || 'http://localhost:8003/mcp').trim();
     let memoryUrl = (settings.get('mcpMemoryUrl') || 'http://localhost:8002/mcp').trim();
+    const authToken = (settings.get('mcpAuthToken') || '').trim();
     if (serverMode === 'bridge') {
       indexerUrl = normalizeBridgeUrl(indexerUrl);
       memoryUrl = normalizeBridgeUrl(memoryUrl);
@@ -849,7 +858,7 @@ function createMcpConfigManager(deps) {
       const customPath = (settings.get('windsurfMcpPath') || '').trim();
       const windsPath = customPath || getDefaultWindsurfMcpPath();
       const workspaceHint = getWorkspaceFolderPath();
-      const result = await writeWindsurfMcpServers(windsPath, indexerUrl, memoryUrl, transportMode, serverMode, workspaceHint);
+      const result = await writeWindsurfMcpServers(windsPath, indexerUrl, memoryUrl, transportMode, serverMode, workspaceHint, authToken);
       wroteAny = wroteAny || result;
     }
     if (wantsAugment) {
