@@ -4,13 +4,13 @@ This guide explains how to quickly deploy Context Engine on a single-node VPS us
 
 ## Prerequisites
 
-- Linux VPS with at least 4GB RAM and 20GB disk space
+- Linux VPS with at least 8GB RAM and 20GB disk space
 - Docker installed (for building images)
 - Root or sudo access
 
-## 1. Quick Install
+## 1. Quick Install (Runs Locally)
 
-Log into your server (SSH) and run these commands:
+Open your local pc (cmd/terminal) and run these commands:
 
 ```bash
 # Clone the repository
@@ -40,14 +40,15 @@ Once the script finishes, it will show a URL like `http://1.2.3.4:30810`.
 
 **Required Settings (General tab):**
 - **Endpoint**: `http://YOUR_SERVER_IP:30810` (replace with your actual server IP)
-- **Scaffold Config**: `false` (prevents creating `ctx_config.json`, `.env`, `.mcp.json` in your projects)
+- **Scaffold Config**: `true` (creating `ctx_config.json`, `.env`, `.mcp.json` globally)
 
 **Required Settings (MCP Server tab):**
 - **Indexer URL**: `http://YOUR_SERVER_IP:30806/mcp` (for MCP indexer)
 - **Memory URL**: `http://YOUR_SERVER_IP:30804/mcp` (for MCP memory)
 
-**Critical - Disable Auto-Write:**
-- **MCP Integrations** → **Auto-write on Startup**: `false` (prevents automatic file creation on extension activation)
+**Auto-Write MCP:**
+- **MCP Integrations** → **Auto-write on Startup**: `false` (disable automatic mcp add for indexer and memory, you can just run it once manually for each IDE (cursor/augment/windsurf/antigravity) from write mcp command)
+![alt text](image.png)
 
 **Optional Settings:**
 - **Run On Startup**: Enable to auto-index when VS Code opens
@@ -82,7 +83,7 @@ Once the script finishes, it will show a URL like `http://1.2.3.4:30810`.
 | Claude Hook | CTX Indexer URL | `http://YOUR_IP:30806/mcp` |
 | MCP Integrations | Auto-write on Startup | `false` |
 
-**Important:** After changing settings, click the **Save Settings** button in the settings panel.
+**Important:** Setting only work via "Open Settings (JSON)". OR you can just use predefined profile in this repository.
 
 ## 3. Verify
 
@@ -96,39 +97,9 @@ Once the script finishes, it will show a URL like `http://1.2.3.4:30810`.
 - Verify the server IP is reachable: `curl http://YOUR_SERVER_IP:30810/health`
 - Ensure no firewall is blocking port 30810
 
-## 4. Prevent File Pollution
+## 4. Global Configuration
 
-The extension creates `ctx_config.json`, `.env`, and `.mcp.json` in your project directories. To prevent this:
-
-**Step 1: Disable ALL auto-write settings**
-
-In VSCode Settings (`Ctrl+,`), search for "Context Engine" and set:
-- **General** → **Scaffold Config**: `false`
-- **MCP Integrations** → **Auto-write on Startup**: `false`
-
-**Step 2: Avoid manual triggers**
-
-Do NOT click these actions in the Context Engine sidebar:
-- ❌ "Write MCP Config..." 
-- ❌ "Write CTX Config (ctx_config.json)"
-
-These will create files even if auto-write is disabled.
-
-**Step 3: Clean up existing files**
-
-```bash
-# Remove from your project directories
-cd /path/to/your/project
-rm -f ctx_config.json .env .mcp.json .git_history_cache.json
-
-# Add to .gitignore globally
-echo -e "\n# Context Engine extension files\nctx_config.json\n.env\n.mcp.json\n.git_history_cache.json" >> .gitignore
-```
-
-**Why this happens:**
-- The extension has TWO separate triggers: `scaffoldCtxConfig` (General tab) and `autoWriteMcpConfigOnStartup` (MCP Integrations tab)
-- Even with `scaffoldCtxConfig=false`, the extension calls `writeCtxConfig()` when `autoWriteMcpConfigOnStartup=true` (see `extension.js:511-515`)
-- Both settings must be `false` to prevent automatic file creation
+The extension creates `ctx_config.json`, `.env`, and `.mcp.json` now located in `.context-engine` directory in your home directory. Globally available customized for each project for multiple project.
 
 ## Authentication Setup (Optional - Required for Public VPS)
 
