@@ -167,6 +167,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "6Gi"
 
   - target:
       kind: Deployment
@@ -237,7 +240,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
+        value: 1
 
   # 7. Fix MCP Memory Volume Configuration (Remove duplicate PVC reference)
   - target:
