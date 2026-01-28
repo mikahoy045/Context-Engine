@@ -1,0 +1,126 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - neo4j.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: mcp-indexer-http
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          value: neo4j
+
+  - target:
+      kind: Deployment
+      name: mcp-memory-http
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          value: neo4j
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          value: neo4j
+
+  - target:
+      kind: Deployment
+      name: mcp-memory
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          value: neo4j

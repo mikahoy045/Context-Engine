@@ -19,7 +19,10 @@ import os
 import re
 from typing import Any, Optional
 
-from scripts.llm_utils import strip_markdown_fences as _strip_markdown_fences
+try:
+    from scripts.llm_utils import strip_markdown_fences as _strip_markdown_fences
+except ModuleNotFoundError:
+    from llm_utils import strip_markdown_fences as _strip_markdown_fences
 
 
 # ---------------------------------------------------------------------------

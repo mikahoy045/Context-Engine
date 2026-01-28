@@ -12,7 +12,9 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 HOOK_SRC="$SCRIPT_DIR/../../ctx-hook-simple.sh"
 CTX_SRC="$SCRIPT_DIR/../../scripts/ctx.py"
 ROUTER_SRC="$SCRIPT_DIR/../../scripts/mcp_router.py"
+ROUTER_PKG="$SCRIPT_DIR/../../scripts/mcp_router"
 REFRAG_SRC="$SCRIPT_DIR/../../scripts/refrag_glm.py"
+LLM_UTILS_SRC="$SCRIPT_DIR/../../scripts/llm_utils.py"
 ENV_EXAMPLE_SRC="$SCRIPT_DIR/../../.env.example"
 AUTH_SRC="$SCRIPT_DIR/../../scripts/upload_auth_utils.py"
 
@@ -51,8 +53,14 @@ fi
 if [[ -f "$ROUTER_SRC" ]]; then
     cp "$ROUTER_SRC" "$STAGE_DIR/mcp_router.py"
 fi
+if [[ -d "$ROUTER_PKG" ]]; then
+    cp -r "$ROUTER_PKG" "$STAGE_DIR/mcp_router"
+fi
 if [[ -f "$REFRAG_SRC" ]]; then
     cp "$REFRAG_SRC" "$STAGE_DIR/refrag_glm.py"
+fi
+if [[ -f "$LLM_UTILS_SRC" ]]; then
+    cp "$LLM_UTILS_SRC" "$STAGE_DIR/llm_utils.py"
 fi
 
 # Bundle auth helper used by standalone_upload_client.py

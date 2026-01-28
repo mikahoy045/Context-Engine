@@ -48,22 +48,39 @@ function createPromptPlusManager(deps) {
 
   function resolveCtxScriptPath() {
     const candidates = [];
-    candidates.push(path.join(extensionRoot, 'scripts', 'ctx.py'));
+    
     candidates.push(path.join(extensionRoot, 'ctx.py'));
+    candidates.push(path.join(extensionRoot, 'scripts', 'ctx.py'));
+    
     const wsFolder = getWorkspaceFolderPath();
     if (wsFolder) {
-      candidates.push(path.join(wsFolder, 'scripts', 'ctx.py'));
       candidates.push(path.join(wsFolder, 'ctx.py'));
+      candidates.push(path.join(wsFolder, 'scripts', 'ctx.py'));
     }
+    
     candidates.push(path.resolve(extensionRoot, '..', '..', 'scripts', 'ctx.py'));
+    
+    try {
+      const repoRoot = path.resolve(extensionRoot, '..', '..');
+      const repoScripts = path.join(repoRoot, 'scripts', 'ctx.py');
+      if (!candidates.includes(repoScripts)) {
+        candidates.push(repoScripts);
+      }
+    } catch (_) {}
 
     for (const candidate of candidates) {
       if (candidate && fs.existsSync(candidate)) {
-        return path.resolve(candidate);
+        const scriptsDir = path.dirname(candidate);
+        const mcpRouterPath = path.join(scriptsDir, 'mcp_router.py');
+        if (fs.existsSync(mcpRouterPath)) {
+          log(`Found ctx.py with dependencies at ${candidate}`);
+          return path.resolve(candidate);
+        }
+        log(`Found ctx.py at ${candidate} but missing mcp_router.py dependency`);
       }
     }
 
-    vscode.window.showErrorMessage('Context Engine Uploader: ctx.py not found (expected scripts/ctx.py).');
+    vscode.window.showErrorMessage('Context Engine Uploader: ctx.py not found or missing dependencies (mcp_router.py).');
     return undefined;
   }
 
@@ -163,7 +180,11 @@ function createPromptPlusManager(deps) {
     }
 
     const pythonPath = getConfiguredPythonPath();
-    const projectRoot = path.dirname(path.dirname(ctxScript));
+    const ctxDir = path.dirname(ctxScript);
+    const ctxBasename = path.basename(path.dirname(ctxScript));
+    const isInScriptsDir = ctxBasename === 'scripts';
+    const projectRoot = isInScriptsDir ? path.dirname(ctxDir) : ctxDir;
+    
     const env = { ...process.env };
     env.PYTHONUNBUFFERED = '1';
     const decoderUrl = getConfiguredDecoderUrl();
@@ -216,7 +237,14 @@ function createPromptPlusManager(deps) {
     }
 
     const existingPyPath = env.PYTHONPATH || '';
-    env.PYTHONPATH = existingPyPath ? `${projectRoot}${path.delimiter}${existingPyPath}` : projectRoot;
+    const pathsToAdd = [ctxDir];
+    if (isInScriptsDir && ctxDir !== projectRoot) {
+      pathsToAdd.push(projectRoot);
+    }
+    const newPythonPath = pathsToAdd.join(path.delimiter);
+    env.PYTHONPATH = existingPyPath ? `${newPythonPath}${path.delimiter}${existingPyPath}` : newPythonPath;
+    
+    log(`PYTHONPATH set to: ${env.PYTHONPATH}`);
 
     const configuredMode = readDefaultModeFromCtxConfig(ctxWorkspaceDir);
     const modeUsed = configuredMode || 'default';

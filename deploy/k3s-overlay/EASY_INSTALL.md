@@ -17,9 +17,15 @@ Open your local pc (cmd/terminal) and run these commands:
 git clone https://github.com/m1rl0k/Context-Engine.git
 cd Context-Engine/deploy/k3s-overlay
 
-# Run the easy install script
+# Run the easy install script (with Neo4j enabled by default)
 chmod +x easy_install.sh build_k3s_images.sh
 sudo ./easy_install.sh
+```
+
+**To install WITHOUT Neo4j:**
+
+```bash
+sudo ./easy_install.sh --no-neo4j
 ```
 
 **What this script does:**
@@ -28,6 +34,7 @@ sudo ./easy_install.sh
 * Builds and imports all Docker images into K3s containerd
 * Deploys all services with single-node optimizations (RWO volumes, local-path storage)
 * Enables **Remote Upload** feature for VS Code integration
+* **Enables Neo4j graph database** (default) for advanced graph queries
 * Outputs your connection URL
 
 ## 2. Connect VS Code
@@ -148,7 +155,13 @@ cd Context-Engine/deploy/k3s-overlay
 sudo k3s kubectl apply -k auth-overlay/
 ```
 
-Or modify `easy_install.sh` to use `auth-overlay` instead of the base overlay.
+#### Step 4: (Optional) Enable Neo4j
+
+```bash
+sudo k3s kubectl apply -k neo4j-overlay/
+sudo k3s kubectl rollout restart deployment/mcp-indexer-http -n context-engine
+sudo k3s kubectl rollout restart deployment/mcp-memory-http -n context-engine
+```
 
 #### Step 4: Configure Client
 
@@ -174,6 +187,119 @@ Then run the **"Write MCP Config (Windsurf)"** command.
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN" http://YOUR_IP:30806/mcp
 curl http://YOUR_IP:30806/mcp
+```
+
+## Neo4j Graph Database (Optional - Advanced)
+
+Neo4j provides advanced graph query capabilities for code analysis. **Optional** for basic usage but **recommended** for advanced graph queries.
+
+### Local Deployment (With Neo4j - Default)
+
+For local deployments with Neo4j support (default behavior):
+
+```bash
+cd Context-Engine/deploy/k3s-overlay
+
+# 1. Build images (includes Neo4j)
+sudo ./build_k3s_images.sh
+
+# 2. Run easy install (Neo4j enabled by default)
+sudo ./easy_install.sh
+```
+
+### Local Deployment (Without Neo4j)
+
+For local deployments without Neo4j:
+
+```bash
+cd Context-Engine/deploy/k3s-overlay
+
+# 1. Build images
+sudo ./build_k3s_images.sh
+
+# 2. Run easy install with --no-neo4j flag
+sudo ./easy_install.sh --no-neo4j
+```
+
+### VPS/Public Deployment (With Auth + Neo4j)
+
+For public deployments with both authentication and Neo4j:
+
+```bash
+cd Context-Engine/deploy/k3s-overlay
+
+# 1. Generate Auth Tokens
+ADMIN_TOKEN=$(openssl rand -hex 32)
+SHARED_TOKEN=$(openssl rand -hex 32)
+echo "Admin Token: $ADMIN_TOKEN"
+echo "Shared Token: $SHARED_TOKEN"
+
+# 2. Configure auth-secret.yaml
+cd auth-overlay
+nano auth-secret.yaml
+# Set CTXCE_AUTH_ADMIN_TOKEN and CTXCE_AUTH_SHARED_TOKEN
+
+# 3. Apply base deployment
+cd ..
+sudo k3s kubectl apply -k .
+
+# 4. Apply auth overlay
+sudo k3s kubectl apply -k auth-overlay/
+
+# 5. Apply Neo4j overlay
+sudo k3s kubectl apply -k neo4j-overlay/
+
+# 6. Wait for Neo4j to be ready
+sudo k3s kubectl wait --for=condition=ready --timeout=300s statefulset/neo4j -n context-engine
+
+# 7. Restart indexer services
+sudo k3s kubectl rollout restart deployment/mcp-indexer-http -n context-engine
+sudo k3s kubectl rollout restart deployment/mcp-memory-http -n context-engine
+sudo k3s kubectl rollout restart deployment/mcp-indexer -n context-engine
+sudo k3s kubectl rollout restart deployment/mcp-memory -n context-engine
+```
+
+### Verify Neo4j
+
+```bash
+# Check Neo4j pod status
+sudo k3s kubectl get pods -n context-engine | grep neo4j
+
+# Check Neo4j logs
+sudo k3s kubectl logs -n context-engine -l app=neo4j
+
+# Test Neo4j connectivity
+sudo k3s kubectl exec -n context-engine -it $(sudo k3s kubectl get pod -n context-engine -l app=mcp-indexer-http -o name | head -1) -- curl http://neo4j:7474
+
+# Check env vars in indexer
+sudo k3s kubectl exec -n context-engine -it $(sudo k3s kubectl get pod -n context-engine -l app=mcp-indexer-http -o name | head -1) -- env | grep NEO4J
+```
+
+### Neo4j Configuration
+
+Neo4j is configured with:
+- **Image**: `neo4j:4.4.28-community` (stable version)
+- **Memory**: 2Gi heap, 1Gi page cache
+- **Storage**: 5Gi persistent volume
+- **Ports**: HTTP 7474, Bolt 7687
+- **Auth**: `neo4j/contextengine` (default credentials)
+
+### Graph Query Capabilities
+
+With Neo4j enabled, you can use `neo4j_graph_query()` for advanced code analysis:
+- **Callers**: Find all callers of a function
+- **Importers**: Find all files importing a module
+- **Definitions**: Find all definitions of a symbol
+- **Impact**: Analyze impact of changes
+- **Cycles**: Detect circular dependencies
+
+Example usage in MCP tools:
+```python
+# Find all callers of a function
+neo4j_graph_query("MATCH (c:Call)-[:CALLS]->(f:Function {name: 'my_function'}) RETURN c")
+
+# Find circular dependencies
+neo4j_graph_query("MATCH path = (a)-[:IMPORTS*]->(a) RETURN path")
 ```
 
 ## Configuration

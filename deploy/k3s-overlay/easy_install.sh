@@ -2,11 +2,33 @@
 set -e
 
 # Context Engine - Easy Install Script for K3s
-# Usage: sudo ./easy_install.sh
+# Usage: sudo ./easy_install.sh [--no-neo4j]
+
+# Parse arguments
+NEO4J_ENABLED="true"
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-neo4j)
+            NEO4J_ENABLED="false"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: sudo ./easy_install.sh [--no-neo4j]"
+            exit 1
+            ;;
+    esac
+done
 
 echo "=========================================="
 echo "Context Engine - Easy Installer"
 echo "=========================================="
+
+if [ "$NEO4J_ENABLED" = "true" ]; then
+    echo "[+] Neo4j: ENABLED"
+else
+    echo "[+] Neo4j: DISABLED"
+fi
 
 # 1. Install K3s if not present
 if ! command -v k3s &> /dev/null; then
@@ -41,9 +63,22 @@ fi
 echo "[+] Deploying Context Engine (with K3s overrides)..."
 sudo k3s kubectl apply -k "$(dirname "$0")"
 
+# 5. Apply Neo4j Overlay (if enabled)
+if [ "$NEO4J_ENABLED" = "true" ]; then
+    echo "[+] Applying Neo4j overlay..."
+    sudo k3s kubectl apply -k "$(dirname "$0")/neo4j-overlay/"
+else
+    echo "[+] Skipping Neo4j overlay (--no-neo4j specified)"
+fi
+
 # 5. Wait for Services
 echo "[+] Waiting for Upload Service to be ready..."
 sudo k3s kubectl wait --for=condition=available --timeout=400s deployment/upload-service -n context-engine
+
+if [ "$NEO4J_ENABLED" = "true" ]; then
+    echo "[+] Waiting for Neo4j to be ready..."
+    sudo k3s kubectl wait --for=condition=ready --timeout=300s statefulset/neo4j -n context-engine || echo "[!] Neo4j not ready (may still be starting)"
+fi
 
 # 6. Get Access Info
 NODE_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)

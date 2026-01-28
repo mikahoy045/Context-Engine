@@ -10,15 +10,9 @@ patches:
       kind: ConfigMap
       name: context-engine-config
     patch: |-
-      - op: add
-        path: /data/REMOTE_UPLOAD_ENABLED
-        value: "1"
-      - op: add
-        path: /data/LLAMACPP_MODEL_URL
-        value: "https://huggingface.co/ibm-granite/granite-4.0-micro-GGUF/resolve/main/granite-4.0-micro-Q4_K_M.gguf"
-      - op: add
-        path: /data/LLAMACPP_MODEL_NAME
-        value: "model.gguf"
+      - op: replace
+        path: /data/FASTMCP_INDEXER_PORT
+        value: "8003"
   
   # 1. Update PVCs to use 'local-path' and RWO
   - target:
@@ -123,6 +117,39 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "8Gi"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          - op: add
+            path: /spec/template/spec/containers/0/env/-
+            value:
+              name: GRAPH_IMPORT_ON_INDEX
+              value: "1"
+          value: neo4j
 
   - target:
       kind: Deployment
@@ -134,6 +161,36 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "200m"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          - op: add
+            path: /spec/template/spec/containers/0/env/-
+            value:
+              name: GRAPH_IMPORT_ON_INDEX
+              value: "1"
+          value: neo4j
   
   - target:
       kind: Deployment
@@ -145,6 +202,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "6Gi"
 
   - target:
       kind: Deployment
@@ -169,7 +229,49 @@ patches:
         value: "100m"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "6Gi"
+        value: "12Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/ports/0/containerPort
+        value: 8003
+      - op: replace
+        path: /spec/template/spec/containers/0/ports/1/containerPort
+        value: 18003
+      - op: replace
+        path: /spec/template/spec/containers/0/env/5/value
+        value: "8003"
+      - op: replace
+        path: /spec/template/spec/containers/0/env/6/value
+        value: "18003"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          - op: add
+            path: /spec/template/spec/containers/0/env/-
+            value:
+              name: GRAPH_IMPORT_ON_INDEX
+              value: "1"
+          value: neo4j
 
   - target:
       kind: Deployment
@@ -181,6 +283,36 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "100m"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_GRAPH
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_URI
+          value: bolt://neo4j:7687
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_USER
+          value: neo4j
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_PASSWORD
+          value: contextengine
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NEO4J_DATABASE
+          - op: add
+            path: /spec/template/spec/containers/0/env/-
+            value:
+              name: GRAPH_IMPORT_ON_INDEX
+              value: "1"
+          value: neo4j
 
   # Fix Jobs too
   - target:
@@ -198,6 +330,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "10Gi"
 
   # 5. Fix Llamacpp Image (Use local build) & Command & Resources
   - target:
