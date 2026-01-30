@@ -246,6 +246,28 @@ def main() -> None:
     obs.schedule(handler, str(ROOT), recursive=True)
     obs.start()
 
+    # Perform initial file scan on startup
+    print("[initial_scan] Scanning for files to index...")
+    try:
+        from pathlib import Path
+        scanned_count = 0
+        for root_dir, dirs, files in os.walk(str(ROOT)):
+            for file in files:
+                file_path = Path(root_dir) / file
+                try:
+                    rel = file_path.resolve().relative_to(ROOT.resolve())
+                except ValueError:
+                    continue
+                if any(part == ".codebase" for part in rel.parts):
+                    continue
+                if not idx.is_indexable_file(file_path):
+                    continue
+                handler._maybe_enqueue(str(file_path))
+                scanned_count += 1
+        print(f"[initial_scan] Scanned {scanned_count} files for indexing")
+    except Exception as e:
+        print(f"[initial_scan] Error during initial scan: {e}")
+
     # Mark watcher as healthy after observer starts
     global _watcher_healthy
     _watcher_healthy = True

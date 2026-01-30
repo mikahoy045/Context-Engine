@@ -682,6 +682,11 @@ function register(context, deps) {
           command: { command: 'contextEngineUploader.indexCodebase', title: 'Index Codebase' },
           tooltip: 'Runs the force upload once (then watch if enabled).',
         }),
+        makeTreeItem('Graph Backfill', {
+          icon: new vscode.ThemeIcon('graph'),
+          command: { command: 'contextEngineUploader.graphBackfill', title: 'Graph Backfill' },
+          tooltip: 'Manually trigger graph backfill for Neo4j. Use if auto-backfill failed (e.g., OOM).',
+        }),
         makeTreeItem('Start Upload / Watch', {
           icon: new vscode.ThemeIcon('play'),
           command: { command: 'contextEngineUploader.start', title: 'Start Upload / Watch' },

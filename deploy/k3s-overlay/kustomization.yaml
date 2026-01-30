@@ -123,6 +123,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "12Gi"
 
   - target:
       kind: Deployment
@@ -275,15 +278,6 @@ patches:
         path: /data/GRAPH_IMPORT_ON_INDEX
         value: "1"
 
-  # 9.5. Enable multi-repo mode (set COLLECTION_NAME to empty)
-  - target:
-      kind: ConfigMap
-      name: context-engine-config
-    patch: |-
-      - op: replace
-        path: /data/COLLECTION_NAME
-        value: ""
-
   # 10. Enable NEO4J_GRAPH
   - target:
       kind: ConfigMap
@@ -307,14 +301,11 @@ patches:
               name: context-engine-config
               key: NEO4J_GRAPH
 
-  # 12. Add Neo4j credentials
+  # 12. Add Neo4j credentials (note: neo4j-overlay sets NEO4J_URI to bolt:// for single-instance)
   - target:
       kind: ConfigMap
       name: context-engine-config
     patch: |-
-      - op: add
-        path: /data/NEO4J_URI
-        value: "neo4j://neo4j:7687"
       - op: add
         path: /data/NEO4J_USER
         value: "neo4j"
@@ -324,3 +315,12 @@ patches:
       - op: add
         path: /data/NEO4J_DATABASE
         value: "neo4j"
+
+  # 13. Fix symbol_graph to prioritize Neo4j backend
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: add
+        path: /data/GRAPH_FALLBACK_ON_EMPTY
+        value: "0"

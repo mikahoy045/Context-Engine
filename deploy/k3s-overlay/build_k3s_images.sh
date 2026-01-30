@@ -70,11 +70,11 @@ docker save context-engine-llamacpp:latest | sudo k3s ctr images import -
 
 # 5. Neo4j (for graph queries)
 echo "------------------------------------------"
-echo "[+] Building neo4j:5.26.0-community..."
-docker pull neo4j:5.26.0-community
+echo "[+] Building neo4j:4.4.28-community..."
+docker pull neo4j:4.4.28-community
 
 echo "[+] Importing neo4j into K3s..."
-docker save neo4j:5.26.0-community | sudo k3s ctr images import -
+docker save neo4j:4.4.28-community | sudo k3s ctr images import -
 
 echo "=========================================="
 echo "All images built and imported!"

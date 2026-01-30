@@ -143,6 +143,10 @@
         "command": "contextEngineUploader.openSettings",
         "title": "Context Engine: Open Settings",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "contextEngineUploader.graphBackfill",
+        "title": "Context Engine Uploader: Graph Backfill"
       }
     ],
     "viewsContainers": {
