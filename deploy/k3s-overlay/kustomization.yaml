@@ -126,6 +126,11 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
         value: "12Gi"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: PYTHONPATH
+          value: "/app/plugins:/usr/local/lib/python3.11/site-packages"
 
   - target:
       kind: Deployment
@@ -173,6 +178,11 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
         value: "6Gi"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: PYTHONPATH
+          value: "/app/plugins:/usr/local/lib/python3.11/site-packages"
 
   - target:
       kind: Deployment
@@ -193,6 +203,12 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
+      - op: replace
+        path: /spec/template/spec/initContainers/0/command
+        value:
+          - sh
+          - -c
+          - "mkdir -p /mnt/rerank_weights /mnt/rerank_events && chmod -f 777 /mnt/rerank_weights /mnt/rerank_events || true"
 
   - target:
       kind: Job
@@ -201,6 +217,12 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
+      - op: replace
+        path: /spec/template/spec/initContainers/0/command
+        value:
+          - sh
+          - -c
+          - "mkdir -p /mnt/rerank_weights /mnt/rerank_events && chmod -f 777 /mnt/rerank_weights /mnt/rerank_events || true"
 
   # 5. Fix Llamacpp Image (Use local build) & Command & Resources
   - target:
@@ -246,6 +268,7 @@ patches:
         value: 1
 
   # 7. Fix MCP Memory Volume Configuration (Remove duplicate PVC reference)
+  # NOTE: /work must NOT be readOnly because /work/.codebase is mounted inside it
   - target:
       kind: Deployment
       name: mcp-memory
@@ -259,7 +282,6 @@ patches:
         value:
           - name: work-volume
             mountPath: /work
-            readOnly: true
           - name: codebase-volume
             mountPath: /work/.codebase
           - name: codebase-volume
@@ -342,3 +364,59 @@ patches:
       - op: replace
         path: /data/MICRO_CHUNK_STRIDE
         value: "8"
+
+  # 15. Fix init containers - use chmod -f to ignore errors on setgid directories
+  - target:
+      kind: Deployment
+      name: mcp-indexer
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/command
+        value:
+          - sh
+          - -c
+          - "mkdir -p /work/.codebase/rerank_weights /work/.codebase/rerank_events && chmod -f 777 /work/.codebase/rerank_weights /work/.codebase/rerank_events || true"
+
+  - target:
+      kind: Deployment
+      name: mcp-indexer-http
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/command
+        value:
+          - sh
+          - -c
+          - "mkdir -p /work/.codebase/rerank_weights /work/.codebase/rerank_events && chmod -f 777 /work/.codebase/rerank_weights /work/.codebase/rerank_events || true"
+
+  - target:
+      kind: Deployment
+      name: mcp-memory-http
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/command
+        value:
+          - sh
+          - -c
+          - "mkdir -p /work/.codebase/rerank_weights /work/.codebase/rerank_events && chmod -f 777 /work/.codebase/rerank_weights /work/.codebase/rerank_events || true"
+
+  - target:
+      kind: Deployment
+      name: watcher
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/command
+        value:
+          - sh
+          - -c
+          - "mkdir -p /work/.codebase/rerank_weights /work/.codebase/rerank_events && chmod -f 777 /work/.codebase/rerank_weights /work/.codebase/rerank_events || true"
+
+  - target:
+      kind: Deployment
+      name: learning-reranker-worker
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/command
+        value:
+          - sh
+          - -c
+          - "mkdir -p /work/.codebase/rerank_weights /work/.codebase/rerank_events && chmod -f 777 /work/.codebase/rerank_weights /work/.codebase/rerank_events || true"

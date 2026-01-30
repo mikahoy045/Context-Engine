@@ -53,6 +53,8 @@ build/
 *.XxwubJkx
 .coverage
 
+*.fuse*
+
 /deploy/eks-cdk
 .env.coir-jina-code
 .env.pathful

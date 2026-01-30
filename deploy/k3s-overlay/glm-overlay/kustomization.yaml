@@ -3,13 +3,8 @@ kind: Kustomization
 
 namespace: context-engine
 
-bases:
-  - ../
-
-resources:
-  - secret.yaml
-
 patches:
+  # Set ReFrAg runtime to GLM (cloud API)
   - target:
       kind: ConfigMap
       name: context-engine-config
@@ -17,31 +12,3 @@ patches:
       - op: replace
         path: /data/REFRAG_RUNTIME
         value: "glm"
-
-  - target:
-      kind: Deployment
-      name: mcp-indexer
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value:
-          name: GLM_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: context-engine-glm-api-key
-              key: GLM_API_KEY
-
-  - target:
-      kind: Deployment
-      name: mcp-indexer-http
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value:
-          name: GLM_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: context-engine-glm-api-key
-              key: GLM_API_KEY
-
-

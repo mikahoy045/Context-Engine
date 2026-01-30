@@ -72,14 +72,22 @@ sudo k3s kubectl create namespace context-engine --dry-run=client -o yaml | sudo
 # 3.5 Build/Import Images (if Docker available)
 if command -v docker &> /dev/null; then
     echo "[+] Docker found. Checking if images need to be built..."
-    if ! sudo k3s ctr images list | grep -q "context-engine-upload-service"; then
-        echo "[!] Context Engine images not found in K3s. Building them now (this will take time)..."
+    
+    IMAGES_NEEDED=0
+    for img in context-engine-upload-service context-engine-mcp context-engine-memory context-engine-indexer context-engine-llamacpp; do
+        if ! sudo k3s ctr images list | grep -q "docker.io/library/${img}:latest"; then
+            echo "[!] Missing image: $img"
+            IMAGES_NEEDED=1
+        fi
+    done
+    
+    if [ "$IMAGES_NEEDED" -eq 1 ]; then
+        echo "[!] Some Context Engine images not found in K3s. Building them now (this will take time)..."
         "$(dirname "$0")/build_k3s_images.sh"
     else
-        echo "[+] Images already present in K3s."
+        echo "[+] All required images already present in K3s."
     fi
 
-    # Fix: Tag mcp image as indexer to prevent ErrImageNeverPull errors
     echo "[+] Fixing image tags for indexer deployments..."
     if sudo k3s ctr images list | grep -q "docker.io/library/context-engine:latest"; then
         if ! sudo k3s ctr images list | grep -q "docker.io/library/context-engine-indexer:latest"; then
@@ -120,7 +128,7 @@ if [ "$REFRAG_MODE" = "glm" ]; then
     # Patch ConfigMap to use GLM runtime
     sudo k3s kubectl patch configmap context-engine-config -n context-engine \
         --type merge \
-        -p "{\"data\": {\"REFRAG_RUNTIME\": \"glm\"}}"
+        -p '{"data": {"REFRAG_RUNTIME": "glm"}}'
 
     # Patch mcp-indexer deployment to inject GLM_API_KEY
     sudo k3s kubectl patch deployment mcp-indexer -n context-engine \
@@ -177,6 +185,14 @@ if [ "$FAILED_PODS" -gt 0 ]; then
     # Re-apply manifests to recreate PVCs
     echo "[+] Recreating PVCs..."
     sudo k3s kubectl apply -k "$(dirname "$0")" 2>/dev/null || true
+
+    # Re-apply GLM configuration if needed (after PVC recreation)
+    if [ "$REFRAG_MODE" = "glm" ]; then
+        echo "[+] Re-applying GLM runtime configuration..."
+        sudo k3s kubectl patch configmap context-engine-config -n context-engine \
+            --type merge \
+            -p '{"data": {"REFRAG_RUNTIME": "glm"}}' 2>/dev/null || true
+    fi
 
     # Restart all affected deployments
     echo "[+] Restarting deployments to use new PVCs..."

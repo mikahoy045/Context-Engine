@@ -15,6 +15,22 @@ REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 cd "$REPO_ROOT"
 echo "[+] Working directory: $(pwd)"
 
+import_to_k3s() {
+    local IMAGE_NAME="$1"
+    echo "[+] Importing $IMAGE_NAME into K3s..."
+    
+    local TMPFILE=$(mktemp /tmp/docker-image-XXXXXX.tar)
+    docker save "$IMAGE_NAME:latest" -o "$TMPFILE"
+    sudo k3s ctr images import "$TMPFILE"
+    rm -f "$TMPFILE"
+    
+    if sudo k3s ctr images list | grep -q "docker.io/library/${IMAGE_NAME}:latest"; then
+        echo "[+] Verified: $IMAGE_NAME imported successfully"
+    else
+        echo "[!] Warning: $IMAGE_NAME may not have imported correctly"
+    fi
+}
+
 build_and_import() {
     IMAGE_NAME="$1"
     DOCKERFILE="$2"
@@ -23,8 +39,7 @@ build_and_import() {
     echo "[+] Building $IMAGE_NAME from $DOCKERFILE..."
     docker build -t "$IMAGE_NAME:latest" -f "$DOCKERFILE" .
     
-    echo "[+] Importing $IMAGE_NAME into K3s..."
-    docker save "$IMAGE_NAME:latest" | sudo k3s ctr images import -
+    import_to_k3s "$IMAGE_NAME"
     echo "[+] Done: $IMAGE_NAME"
 }
 
@@ -37,44 +52,40 @@ build_and_import "context-engine-indexer" "Dockerfile.mcp-indexer"
 # Tag as context-engine-indexer-service (required by indexer-services.yaml)
 echo "[+] Tagging context-engine-indexer-service:latest..."
 docker tag context-engine-indexer:latest context-engine-indexer-service:latest
-docker save context-engine-indexer-service:latest | sudo k3s ctr images import -
+import_to_k3s "context-engine-indexer-service"
 
 # 3. Base/MCP (Memory)
-# Note: Manifests might use context-engine-mcp or context-engine:latest
-# Checking manifest mcp-memory.yaml usually uses context-engine-mcp or similar.
-# Creating both tags to be safe if manifest references vary.
 echo "------------------------------------------"
 echo "[+] Building context-engine-mcp..."
 docker build -t context-engine-mcp:latest -f Dockerfile.mcp .
-
-echo "[+] Importing context-engine-mcp..."
-docker save context-engine-mcp:latest | sudo k3s ctr images import -
+import_to_k3s "context-engine-mcp"
 
 # Tag as context-engine:latest (legacy)
 echo "[+] Tagging context-engine:latest..."
 docker tag context-engine-mcp:latest context-engine:latest
-docker save context-engine:latest | sudo k3s ctr images import -
+import_to_k3s "context-engine"
 
 # Tag as context-engine-memory (required by mcp-memory deployments)
 echo "[+] Tagging context-engine-memory:latest..."
 docker tag context-engine-mcp:latest context-engine-memory:latest
-docker save context-engine-memory:latest | sudo k3s ctr images import -
+import_to_k3s "context-engine-memory"
 
 # 4. Llamacpp
 echo "------------------------------------------"
 echo "[+] Building context-engine-llamacpp from Dockerfile.llamacpp..."
 docker build -t context-engine-llamacpp:latest -f Dockerfile.llamacpp .
-
-echo "[+] Importing context-engine-llamacpp into K3s..."
-docker save context-engine-llamacpp:latest | sudo k3s ctr images import -
+import_to_k3s "context-engine-llamacpp"
 
 # 5. Neo4j (for graph queries)
 echo "------------------------------------------"
-echo "[+] Building neo4j:4.4.28-community..."
+echo "[+] Pulling neo4j:4.4.28-community..."
 docker pull neo4j:4.4.28-community
 
 echo "[+] Importing neo4j into K3s..."
-docker save neo4j:4.4.28-community | sudo k3s ctr images import -
+TMPFILE=$(mktemp /tmp/docker-image-XXXXXX.tar)
+docker save neo4j:4.4.28-community -o "$TMPFILE"
+sudo k3s ctr images import "$TMPFILE"
+rm -f "$TMPFILE"
 
 echo "=========================================="
 echo "All images built and imported!"
