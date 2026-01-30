@@ -22,10 +22,25 @@ chmod +x easy_install.sh build_k3s_images.sh
 sudo ./easy_install.sh
 ```
 
+**ReFrAg Runtime Options:**
+
+By default, the installer uses **llama.cpp** (local, FREE, no API key required). If you want to use the GLM cloud API for potentially better performance:
+
+```bash
+# Use GLM cloud API (requires API key)
+sudo ./easy_install.sh --glm YOUR_GLM_API_KEY_HERE
+
+# Use local llama.cpp (default, FREE)
+sudo ./easy_install.sh
+```
+
 **To install WITHOUT Neo4j:**
 
 ```bash
 sudo ./easy_install.sh --no-neo4j
+
+# Combine flags (no Neo4j + GLM API)
+sudo ./easy_install.sh --no-neo4j --glm YOUR_GLM_API_KEY_HERE
 ```
 
 **What this script does:**
@@ -35,6 +50,8 @@ sudo ./easy_install.sh --no-neo4j
 * Deploys all services with single-node optimizations (RWO volumes, local-path storage)
 * Enables **Remote Upload** feature for VS Code integration
 * **Enables Neo4j graph database** (default) for advanced graph queries
+* **Enables full ReFrAg with micro-chunking** (16-token chunks, 8-token stride)
+* **Configures ReFrAg runtime**: llama.cpp (default) or GLM cloud API
 * Outputs your connection URL
 
 ## 2. Connect VS Code
@@ -85,12 +102,68 @@ Once the script finishes, it will show a URL like `http://1.2.3.4:30810`.
 | MCP Server | Bridge Port | `30810` |
 | MCP Server | Indexer URL | `http://YOUR_IP:30806/mcp` |
 | MCP Server | Memory URL | `http://YOUR_IP:30804/mcp` |
-| Decoder & AI | Runtime | `llamacpp` (for local) or `glm` (for cloud) |
-| Decoder & AI | Decoder URL | `http://YOUR_IP:30808` |
+| Decoder & AI | Runtime | `llamacpp` (if installed with llama.cpp) or `glm` (if installed with --glm) |
+| Decoder & AI | Decoder URL | `http://YOUR_IP:30808` (if using llama.cpp) |
 | Claude Hook | CTX Indexer URL | `http://YOUR_IP:30806/mcp` |
 | MCP Integrations | Auto-write on Startup | `false` |
 
 **Important:** Setting only work via "Open Settings (JSON)". OR you can just use predefined profile in this repository.
+
+## ReFrAg Runtime Configuration
+
+**ReFrAg (Recursive Refinement Aggregation)** is enabled by default with micro-chunking for improved code search precision. You can choose between two runtime options:
+
+### llama.cpp (Default - Local, FREE)
+
+**Best for:**
+- Local development
+- Privacy-sensitive code
+- Cost-free operation
+- No API rate limits
+
+**Installation:**
+```bash
+sudo ./easy_install.sh
+```
+
+**Features:**
+- ✅ No API key required
+- ✅ Local processing (code never leaves your server)
+- ✅ Free (no cloud costs)
+- ✅ Uses granite-4.0-micro model
+- ⚠️ Requires sufficient CPU (500m allocated)
+
+### GLM Cloud API (Optional - Better Performance)
+
+**Best for:**
+- Production deployments
+- Maximum performance
+- Faster decoding
+- Willing to pay for API calls
+
+**Installation:**
+```bash
+sudo ./easy_install.sh --glm YOUR_GLM_API_KEY_HERE
+```
+
+**Features:**
+- ✅ Better performance (cloud-optimized)
+- ✅ Faster processing
+- ✅ Regular model updates
+- ❌ Requires API key (cost per query)
+- ❌ Code sent to cloud API
+
+**Performance Comparison:**
+
+| Feature | llama.cpp | GLM API |
+|---------|-----------|---------|
+| Cost | FREE | Pay per query |
+| Latency | ~500-700ms/token | ~50-100ms/token |
+| Privacy | 100% local | Code sent to API |
+| Setup | No setup | API key required |
+| Hardware | Uses CPU/GPU | No hardware needed |
+
+**Recommendation:** Start with llama.cpp (default). Only switch to GLM if you need better performance and are willing to pay for API calls.
 
 ## 3. Verify
 

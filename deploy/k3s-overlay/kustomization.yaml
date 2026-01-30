@@ -324,3 +324,21 @@ patches:
       - op: add
         path: /data/GRAPH_FALLBACK_ON_EMPTY
         value: "0"
+
+  # 14. Enable full ReFrAg with micro-chunking + local llama.cpp runtime
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: replace
+        path: /data/REFRAG_RUNTIME
+        value: "llamacpp"
+      - op: replace
+        path: /data/INDEX_MICRO_CHUNKS
+        value: "1"
+      - op: replace
+        path: /data/MICRO_CHUNK_TOKENS
+        value: "16"
+      - op: replace
+        path: /data/MICRO_CHUNK_STRIDE
+        value: "8"
