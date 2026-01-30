@@ -84,6 +84,26 @@ if command -v docker &> /dev/null; then
     if [ "$IMAGES_NEEDED" -eq 1 ]; then
         echo "[!] Some Context Engine images not found in K3s. Building them now (this will take time)..."
         "$(dirname "$0")/build_k3s_images.sh"
+        
+        echo "[+] Verifying all images were imported..."
+        MISSING_AFTER_BUILD=0
+        for img in context-engine-upload-service context-engine-mcp context-engine-memory context-engine-indexer context-engine-llamacpp; do
+            if ! sudo k3s ctr images list | grep -q "docker.io/library/${img}:latest"; then
+                echo "[!] Image still missing after build: $img - attempting manual import..."
+                if docker images | grep -q "^${img}"; then
+                    TMPFILE=$(mktemp /tmp/docker-image-XXXXXX.tar)
+                    docker save "${img}:latest" -o "$TMPFILE"
+                    sudo k3s ctr images import "$TMPFILE"
+                    rm -f "$TMPFILE"
+                else
+                    echo "[!] ERROR: Image $img not found in Docker either"
+                    MISSING_AFTER_BUILD=1
+                fi
+            fi
+        done
+        if [ "$MISSING_AFTER_BUILD" -eq 1 ]; then
+            echo "[!] WARNING: Some images could not be imported. Deployment may fail."
+        fi
     else
         echo "[+] All required images already present in K3s."
     fi
