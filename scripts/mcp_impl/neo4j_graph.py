@@ -89,7 +89,21 @@ async def _neo4j_graph_query_impl(
             "error": "symbol parameter is required",
         }
 
-    collection = str(collection or os.environ.get("COLLECTION_NAME", "codebase")).strip() or "codebase"
+    if not collection:
+        try:
+            from qdrant_client import QdrantClient
+            qdrant_url = os.environ.get("QDRANT_URL", "http://qdrant:6333")
+            client = QdrantClient(url=qdrant_url, timeout=5)
+            colls = client.get_collections().collections
+            for c in colls:
+                if c.name and not c.name.startswith("models-") and c.name != "codebase" and not c.name.endswith("_graph"):
+                    collection = c.name
+                    break
+        except Exception as e:
+            logger.debug(f"Failed to detect collection from Qdrant: {e}")
+        if not collection:
+            collection = os.environ.get("COLLECTION_NAME", "codebase")
+    collection = str(collection).strip() or "codebase"
     if collection.endswith("_graph"):
         collection = collection[: -len("_graph")]
 

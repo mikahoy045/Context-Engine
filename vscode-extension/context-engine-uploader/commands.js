@@ -31,6 +31,7 @@ function registerExtensionCommands(deps) {
     const runAuthLogoutFlow = deps.runAuthLogoutFlow;
     const getOnboardingManager = deps.getOnboardingManager;
     const getLogsTerminalManager = deps.getLogsTerminalManager;
+    const getBridgeManager = deps.getBridgeManager;
 
     const disposables = [];
 
@@ -323,6 +324,206 @@ function registerExtensionCommands(deps) {
             await requireDep(runAuthLogoutFlow, 'runAuthLogoutFlow')(endpoint, requireDep(buildAuthDeps, 'buildAuthDeps')());
         } catch (error) {
             handleCatch(error, 'Auth logout failed');
+        }
+    }));
+
+    disposables.push(vscode.commands.registerCommand('contextEngineUploader.graphBackfill', async () => {
+        try {
+            const cfg = requireDep(getEffectiveConfig, 'getEffectiveConfig')();
+            const serverMode = (cfg.get('mcpServerMode') || 'bridge').trim();
+            const transportMode = (cfg.get('mcpTransportMode') || 'sse-remote').trim();
+
+            let mcpUrl = '';
+            if (serverMode === 'bridge' && transportMode === 'http') {
+                const bridgeManager = requireDep(getBridgeManager, 'getBridgeManager')?.();
+                mcpUrl = bridgeManager ? bridgeManager.resolveBridgeHttpUrl() : '';
+            }
+            if (!mcpUrl) {
+                mcpUrl = (cfg.get('ctxIndexerUrl') || cfg.get('mcpIndexerUrl') || 'http://localhost:8003/mcp').trim();
+            }
+
+            if (!mcpUrl) {
+                vscode.window.showErrorMessage('Context Engine Uploader: MCP server URL not configured');
+                return;
+            }
+
+            const outputChannel = getOutputChannel();
+            if (outputChannel) { outputChannel.show(true); }
+
+            log('Detecting collection name...');
+
+            let collectionName = '';
+            try {
+                const listResponse = await fetch(mcpUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json, text/event-stream'
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: Date.now(),
+                        method: 'tools/call',
+                        params: {
+                            name: 'qdrant_list',
+                            arguments: {}
+                        }
+                    })
+                });
+
+                if (listResponse.ok) {
+                    const listText = await listResponse.text();
+                    let listResult;
+                    if (listText.includes('event:') || listText.includes('data:')) {
+                        const lines = listText.split('\n');
+                        let lastDataLine = null;
+                        for (const line of lines) {
+                            if (line.startsWith('data:')) {
+                                lastDataLine = line.substring(5).trim();
+                            }
+                        }
+                        if (lastDataLine) {
+                            listResult = JSON.parse(lastDataLine);
+                        }
+                    } else {
+                        listResult = JSON.parse(listText);
+                    }
+
+                    let data = listResult.result || listResult;
+                    if (data.structuredContent && data.structuredContent.result) {
+                        data = data.structuredContent.result;
+                    } else if (data.content && Array.isArray(data.content) && data.content[0] && data.content[0].text) {
+                        try {
+                            data = JSON.parse(data.content[0].text);
+                        } catch (e) {
+                            log(`Failed to parse qdrant_list content: ${e instanceof Error ? e.message : String(e)}`);
+                        }
+                    }
+
+                    const collections = data.collections || [];
+                    for (const coll of collections) {
+                        if (coll && !coll.startsWith('models-') && coll !== 'codebase' && !coll.endsWith('_graph')) {
+                            collectionName = coll;
+                            break;
+                        }
+                    }
+                    if (collectionName) {
+                        log(`Detected collection: ${collectionName}`);
+                    }
+                }
+            } catch (e) {
+                log(`Failed to detect collection: ${e instanceof Error ? e.message : String(e)}`);
+            }
+
+            log('Starting graph backfill...');
+
+            const maxIterations = 50;
+            const totalResult = {
+                processed: 0,
+                iterations: 0,
+                complete: false,
+            };
+
+            for (let i = 0; i < maxIterations; i++) {
+                try {
+                    const backfillArgs = {
+                        max_points: 1000,
+                        max_iterations: 1
+                    };
+                    if (collectionName) {
+                        backfillArgs.collection = collectionName;
+                    }
+
+                    const response = await fetch(mcpUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json, text/event-stream'
+                        },
+                        body: JSON.stringify({
+                            jsonrpc: '2.0',
+                            id: Date.now(),
+                            method: 'tools/call',
+                            params: {
+                                name: 'graph_backfill',
+                                arguments: backfillArgs
+                            }
+                        })
+                    });
+
+                    if (!response.ok) {
+                        log(`Graph backfill iteration ${i + 1} failed: ${response.status}`);
+                        break;
+                    }
+
+                    const text = await response.text();
+                    let result;
+
+                    try {
+                        if (text.includes('event:') || text.includes('data:')) {
+                            const lines = text.split('\n');
+                            let lastDataLine = null;
+                            for (const line of lines) {
+                                if (line.startsWith('data:')) {
+                                    lastDataLine = line.substring(5).trim();
+                                }
+                            }
+                            if (lastDataLine) {
+                                result = JSON.parse(lastDataLine);
+                            } else {
+                                result = JSON.parse(text);
+                            }
+                        } else {
+                            result = JSON.parse(text);
+                        }
+                    } catch (e) {
+                        log(`Failed to parse response: ${e instanceof Error ? e.message : String(e)}`);
+                        log(`Response text: ${text.substring(0, 500)}`);
+                        break;
+                    }
+
+                    if (result.error) {
+                        log(`Graph backfill error: ${JSON.stringify(result.error)}`);
+                        break;
+                    }
+
+                    let data = result.result || result;
+                    if (data.structuredContent && data.structuredContent.result) {
+                        data = data.structuredContent.result;
+                    } else if (data.content && Array.isArray(data.content) && data.content[0] && data.content[0].text) {
+                        try {
+                            data = JSON.parse(data.content[0].text);
+                        } catch (e) {
+                            log(`Failed to parse content text: ${e instanceof Error ? e.message : String(e)}`);
+                        }
+                    }
+                    const processed = data.processed || 0;
+                    const complete = data.complete !== undefined ? data.complete : (processed === 0);
+
+                    totalResult.processed += processed;
+                    totalResult.iterations++;
+
+                    log(`Graph backfill iteration ${i + 1}: processed ${processed} points (total: ${totalResult.processed})`);
+
+                    if (processed === 0 || complete) {
+                        totalResult.complete = true;
+                        break;
+                    }
+
+                } catch (error) {
+                    log(`Graph backfill iteration ${i + 1} error: ${error instanceof Error ? error.message : String(error)}`);
+                    break;
+                }
+            }
+
+            if (totalResult.complete) {
+                vscode.window.showInformationMessage(`Graph backfill complete: ${totalResult.processed} points in ${totalResult.iterations} iterations`);
+            } else {
+                vscode.window.showWarningMessage(`Graph backfill incomplete: ${totalResult.processed} points in ${totalResult.iterations} iterations (may need more iterations)`);
+            }
+
+        } catch (error) {
+            handleCatch(error, 'Graph backfill failed');
         }
     }));
 

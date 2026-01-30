@@ -2609,9 +2609,10 @@ def graph_backfill_tick(
 
     # Check if we should skip already-backfilled points
     null_cond = getattr(_models, "IsNullCondition", None)
-    if null_cond:
+    payload_field = getattr(_models, "PayloadField", None)
+    if null_cond and payload_field:
         try:
-            must_conditions.append(null_cond(is_null=backfill_marker_key))
+            must_conditions.append(null_cond(is_null=payload_field(key=backfill_marker_key)))
         except Exception as e:
             logger.debug(f"Suppressed exception: {e}")
 

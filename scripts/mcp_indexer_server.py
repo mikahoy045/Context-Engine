@@ -1427,6 +1427,90 @@ async def qdrant_prune(kwargs: Any = None, **ignored: Any) -> Dict[str, Any]:
     return res
 
 
+@mcp.tool()
+async def graph_backfill(
+    collection: Optional[str] = None,
+    repo: Optional[str] = None,
+    max_points: Optional[int] = None,
+    max_iterations: Optional[int] = None,
+    session: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Populate Neo4j graph edges from existing indexed code.
+
+    Use this after enabling NEO4J_GRAPH=1 or to rebuild graph from scratch.
+    Safe to run multiple times - processes incremental batches.
+
+    Parameters:
+    - collection: str (optional). Target collection; defaults to workspace state or env COLLECTION_NAME.
+    - repo: str (optional). Filter by repository name.
+    - max_points: int (optional). Max points per iteration (default: 1000).
+    - max_iterations: int (optional). Max iterations (default: 50).
+
+    Returns: dict with processed count, iterations, and status.
+    """
+    from qdrant_client import QdrantClient
+    from scripts.ingest.pipeline import graph_backfill_tick
+
+    sess = _require_auth_session(session)
+
+    _c = (collection or "").strip()
+    if _c:
+        coll = _c
+    else:
+        try:
+            from scripts.workspace_state import (
+                get_collection_name as _ws_get_collection_name,
+                is_multi_repo_mode as _ws_is_multi_repo_mode,
+            )
+            if _ws_is_multi_repo_mode():
+                coll = _ws_get_collection_name("/work") or _default_collection()
+            else:
+                coll = _ws_get_collection_name(None) or _default_collection()
+        except Exception:
+            coll = _default_collection()
+
+    _require_collection_access((sess or {}).get("user_id") if sess else None, coll, "read")
+
+    max_pts = safe_int(max_points, default=1000, logger=logger, context="max_points")
+    max_iter = safe_int(max_iterations, default=50, logger=logger, context="max_iterations")
+
+    client = QdrantClient(url=QDRANT_URL)
+
+    total_processed = 0
+    iterations_run = 0
+
+    try:
+        for i in range(max_iter):
+            processed = graph_backfill_tick(
+                client,
+                coll,
+                repo_name=repo,
+                max_points=max_pts,
+            )
+            iterations_run += 1
+            total_processed += processed
+
+            if processed == 0:
+                break
+    except Exception as e:
+        logger.warning(f"Graph backfill error: {e}", exc_info=True)
+        return {
+            "ok": False,
+            "error": str(e),
+            "collection": coll,
+            "processed": total_processed,
+            "iterations": iterations_run,
+        }
+
+    return {
+        "ok": True,
+        "collection": coll,
+        "processed": total_processed,
+        "iterations": iterations_run,
+        "complete": iterations_run < max_iter,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Code signal detection imported from mcp_code_signals shim
 # ---------------------------------------------------------------------------

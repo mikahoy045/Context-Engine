@@ -153,6 +153,12 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "4Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "1Gi"
 
   - target:
       kind: Deployment
@@ -300,6 +306,15 @@ patches:
         path: /data/GRAPH_IMPORT_ON_INDEX
         value: "1"
 
+  # 9b. Enable GRAPH_BACKFILL_MARK to prevent re-processing same points
+  - target:
+      kind: ConfigMap
+      name: context-engine-config
+    patch: |-
+      - op: add
+        path: /data/GRAPH_BACKFILL_MARK
+        value: "1"
+
   # 10. Enable NEO4J_GRAPH
   - target:
       kind: ConfigMap
@@ -322,6 +337,20 @@ patches:
             configMapKeyRef:
               name: context-engine-config
               key: NEO4J_GRAPH
+
+  # 11b. Add GRAPH_BACKFILL_MARK env var to mcp-indexer-http
+  - target:
+      kind: Deployment
+      name: mcp-indexer-http
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: GRAPH_BACKFILL_MARK
+          valueFrom:
+            configMapKeyRef:
+              name: context-engine-config
+              key: GRAPH_BACKFILL_MARK
 
   # 12. Add Neo4j credentials (note: neo4j-overlay sets NEO4J_URI to bolt:// for single-instance)
   - target:
