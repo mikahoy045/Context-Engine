@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt \
 # Bake scripts into image so server can run even when /work points elsewhere
 COPY scripts /app/scripts
 
+# Include neo4j_graph plugin for graph backend support
+COPY plugins /app/plugins
+
 # Expose SSE port
 EXPOSE 8000
 
