@@ -2608,15 +2608,24 @@ def graph_backfill_tick(
     # all points and check calls/imports presence in code.
 
     # Check if we should skip already-backfilled points
-    null_cond = getattr(_models, "IsNullCondition", None)
-    payload_field = getattr(_models, "PayloadField", None)
-    if null_cond and payload_field:
+    # Use must_not with MatchValue(True) instead of IsNullCondition
+    # IsNullCondition only matches keys that exist AND are null, not missing keys
+    must_not_conditions: list[Any] = []
+    if os.environ.get("GRAPH_BACKFILL_MARK", "0").lower() in {"1", "true"}:
         try:
-            must_conditions.append(null_cond(is_null=payload_field(key=backfill_marker_key)))
+            must_not_conditions.append(
+                _models.FieldCondition(
+                    key=backfill_marker_key,
+                    match=_models.MatchValue(value=True),
+                )
+            )
         except Exception as e:
             logger.debug(f"Suppressed exception: {e}")
 
-    flt = _models.Filter(must=must_conditions or None) if must_conditions else None
+    flt = _models.Filter(
+        must=must_conditions or None,
+        must_not=must_not_conditions or None,
+    ) if must_conditions or must_not_conditions else None
 
     processed = 0
     next_offset = None
